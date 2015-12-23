@@ -28,6 +28,8 @@ _UDPv4Receive(IpcomTransport *transport, GSocket *socket)
 	IpcomMessage	*newMesg = IpcomMessageNew(0);
 	gssize			length;
 
+	DFUNCTION_START;
+
 	length = g_socket_receive_from(socket, &sockaddr, newMesg->message, newMesg->actual_size, NULL, &gerror);
 	IpcomMessageInit(newMesg, length);
 	if (gerror) {
