@@ -24,11 +24,11 @@ struct _IpcomProtocolOpContext
 {
   struct _IpcomProtocolOpContextId	ctxId;
   IpcomReceiveMessageCallback		recvCallback;
-  void								*cb_data;
-  gint								opType;
-  gint								status;
-  gint								serviceId;
-  IpcomMessage						*message;
+  void					*cb_data;
+  gint					opType;
+  gint					status;
+  gint					serviceId;
+  IpcomMessage				*message;
   //timer
 };
 
@@ -71,19 +71,6 @@ IpcomProtocolRegisterService(IpcomProtocol *proto, IpcomService *service)
   return TRUE;
 }
 
-typedef enum {
-	OPCONTEXT_STATUS_REQUEST_SENT,
-	OPCONTEXT_STATUS_REQUEST_RECV,
-	OPCONTEXT_STATUS_ACK_SENT,
-	OPCONTEXT_STATUS_ACK_RECV,
-	OPCONTEXT_STATUS_RESPONSE_SENT,
-	OPCONTEXT_STATUS_RESPONSE_RECV,
-	OPCONTEXT_STATUS_NOTI_SENT,
-	OPCONTEXT_STATUS_NOTI_RECV,
-	OPCONTEXT_STATUS_ERROR_SENT,
-	OPCONTEXT_STATUS_ERROR_RECV
-};
-
 gint
 IpcomProtocolSendMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessage *mesg, IpcomReceiveMessageCallback recv_cb, void *userdata)
 {
@@ -94,10 +81,11 @@ IpcomProtocolSendMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessa
   case IPPROTO_OPTYPE_SETREQUEST_NORETURN:
   case IPPROTO_OPTYPE_SETREQUEST:
   case IPPROTO_OPTYPE_NOTIFICATION_REQUEST:
+  case IPPROTO_OPTYPE_RESPONSE:
+  case IPPROTO_OPTYPE_NOTIFICATION:
+  case IPPROTO_OPTYPE_NOTIFICATION_CYCLIC:
     {
-      IpcomProtocolOpContext *ctx = IpcomProtocolOpContextCreate(conn, mesg, recv_cb, userdata);
-      ctx->status = OPCONTEXT_STATUS_REQUEST_SENT;
-      IpcomConnectionPushOutgoingMessage(conn, mesg);
+      IpcomProtocolOpContext *ctx = IpcomProtocolOpContextCreate(ctxId, hdr->opType, recv_cb, userdata);
     }
     break;
   default:
@@ -105,6 +93,7 @@ IpcomProtocolSendMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessa
     return -1;
   }
   //IpcomProtocolOpContextNew()
+  return IpcomConnectionPushOutgoingMessage(conn, mesg);
 }
 
 gint
@@ -133,15 +122,6 @@ IpcomProtocolOpContextCreate(IpcomConnection *conn, IpcomMessage *mesg, IpcomRec
   ctx->ctxId.senderHandleId = IpcomMessageGetVCCPDUHeader(mesg)->senderHandleId;
   ctx->recvCallback = recv_cb;
   ctx->cb_data = userdata;
-  ctx->serviceId = IpcomMessageGetVCCPDUHeader(mesg)->serviceID;
-  ctx->opType = IpcomMessageGetVCCPDUHeader(mesg)->opType;
-  ctx->message = IpcomMessageRef(mesg);
-
+  ctx->message = mesg;
   return ctx;
-}
-
-void
-IpcomProtocolOpContextDestroy(IpcomProtocolOpContext *ctx)
-{
-	g_free(ctx);
 }

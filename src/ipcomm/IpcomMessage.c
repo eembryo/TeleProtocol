@@ -40,7 +40,7 @@ message_alloc_failed:
 
 
 IpcomMessage *
-IpcomMessageGet(IpcomMessage *mesg)
+IpcomMessageRef(IpcomMessage *mesg)
 {
 	if(get_ref_count(&mesg->_ref) < 0) {
 		DERROR("ipcom_message has invalid reference count(%d).", get_ref_count(&mesg->_ref));
@@ -52,7 +52,7 @@ IpcomMessageGet(IpcomMessage *mesg)
 }
 
 void
-IpcomMessagePut(IpcomMessage *mesg)
+IpcomMessageUnref(IpcomMessage *mesg)
 {
 	if(get_ref_count(&mesg->_ref) < 0) {
 		DERROR("ipcom_message has invalid reference count(%d).", get_ref_count(&mesg->_ref));

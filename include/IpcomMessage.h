@@ -27,7 +27,7 @@ struct _IpcomMessage {
 	const gchar		*body_ptr;
 	guint16			length;			//the size of this message. It does not include the size of 'struct _IpcomMessage'
 	guint16			actual_size;	//the size of allocated memory for this message. It does not include the size of 'struct _IpcomMessage'
-	char		message[0];		//indicate the start of this message.
+	char			message[0];		//the start of raw message.
 };
 
 // if size equals to zero, maximum message size is allocated.
@@ -45,7 +45,7 @@ static inline gboolean IpcomMessageInit(IpcomMessage *mesg, guint16 length) {
 	mesg->length = length;
 	return TRUE;
 };
-IpcomMessage *IpcomMessageGet(IpcomMessage *message);
-void IpcomMessagePut(IpcomMessage *message);
+IpcomMessage *IpcomMessageRef(IpcomMessage *message);
+void IpcomMessageUnref(IpcomMessage *message);
 
 #endif
