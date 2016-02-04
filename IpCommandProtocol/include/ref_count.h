@@ -1,6 +1,28 @@
+// @@@LICENSE
+//
+// Copyright (C) 2015, LG Electronics, All Right Reserved.
+//
+// No part of this source code may be communicated, distributed, reproduced
+// or transmitted in any form or by any means, electronic or mechanical or
+// otherwise, for any purpose, without the prior written permission of
+// LG Electronics.
+//
+//
+// design/author : hyobeom1.lee@lge.com
+// date   : 12/30/2015
+// Desc   :
+//
+// LICENSE@@@
+
 #ifndef __ref_count_h__
 #define __ref_count_h__
+
+
+#include <glib.h>
 #include <stdio.h>
+
+G_BEGIN_DECLS
+
 #ifndef offsetof
 #ifdef __compiler_offsetof
 #define offsetof(TYPE,MEMBER) __compiler_offsetof(TYPE,MEMBER)
@@ -42,28 +64,31 @@ struct ref {
 };
 
 static inline void
-ref_inc(const struct ref *ref)
+ref_inc(struct ref *ref)
 {
 	((struct ref *)ref)->count++;
 }
 
 static inline void
-ref_dec(const struct ref *ref)
+ref_dec(struct ref *ref)
 {
 	if (--((struct ref *)ref)->count == 0)
 		ref->free(ref);
 }
 
 static inline int
-get_ref_count(const struct ref *ref)
+get_ref_count(struct ref *ref)
 {
 	return ref->count;
 }
 
 static inline void
-ref_init(const struct ref *ref, void (*f)(struct ref *))
+ref_init(struct ref *ref, void (*f)(struct ref *))
 {
 	((struct ref *)ref)->free = f;
 	((struct ref *)ref)->count = 0;
 }
+
+G_END_DECLS
+
 #endif //__ref_count_h__

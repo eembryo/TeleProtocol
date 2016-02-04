@@ -1,0 +1,8 @@
+* Wireshark packet dissector for IP Command Protocol
+This script considers the packets, which are transported over UDP port 50000, as IP
+command messages. And It analyzes PDU header from the packets: payload is not supported, yet.
+
+* Usage
+Before you apply this script, you may have to capture IP command messages using tcpdump.
+
+$ wireshard -X lua_script:ipcomm_dissector.lua <tcpdump file>
