@@ -35,7 +35,8 @@ struct _IpcomOpContext
 	gint								status;
 	gint								serviceId;
 	IpcomMessage						*message;
-	//timer
+	GSource								*timer;
+	IpcomOpCtxDestroyNotify				NotifyDestroyed;
 };
 
 static inline IpcomConnection *				IpcomOpContextGetConnection(IpcomOpContext *ctx)
@@ -60,5 +61,8 @@ IpcomOpContext *							IpcomOpContextCreate(IpcomConnection *conn, guint32 sende
 void										IpcomOpContextDestroy(IpcomOpContext *ctx);
 void										IpcomOpContextSetMessage(IpcomOpContext *ctx, IpcomMessage *mesg);
 gboolean									IpcomOpContextSetStatus(IpcomOpContext *ctx, gint status);
+gboolean									IpcomOpContextTrigger(IpcomOpContext *ctx, IpcomProtocolOpContextTriggers trigger);
+//gboolean									IpcomOpContextSetTimer(IpcomOpContext *opContext, GSource timerSource);
+//gboolean									IpcomOpContextClearTimer(IpcomOpContext *opContext);
 
 #endif /* IPCOMMANDPROTOCOL_INCLUDE_IPCOMOPERATIONCONTEXT_H_ */

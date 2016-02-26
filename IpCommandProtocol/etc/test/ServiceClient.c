@@ -45,6 +45,14 @@ _ProcessMessage(IpcomService *service, const IpcomOpContextId *ctxId, IpcomMessa
 }
 
 static IpcomServiceReturn
+_ProcessNoti(IpcomService *service, IpcomConnection *conn, IpcomMessage *mesg)
+{
+	DFUNCTION_START;
+
+	return IPCOM_SERVICE_SUCCESS;
+}
+
+static IpcomServiceReturn
 _RecvedCallback(const IpcomOpContextId *opContextId, IpcomMessage *mesg, void *userdata)
 {
 	DFUNCTION_START;
@@ -71,6 +79,7 @@ gint main()
 	///[Application] register service ID
 	service = IpcomServiceNew(IPCOM_SERVICEID_TELEMATICS, 0);
 	service->ProcessMessage = _ProcessMessage;
+	service->ProcessNotification = _ProcessNoti;
 	IpcomServiceRegister(service);
 
 	//[Transport] Create connection with CONNECT mode
@@ -84,16 +93,17 @@ gint main()
 	///gmainloop run {
 	count = 0;
 	while (count < 100) {
+		count++;
 		DPRINT("count = %d.\n", count);
 		g_main_context_iteration(context, TRUE);
-		g_usleep(1000000);
-
 		/// Generate new IpcomMessage {
+		//if (count != 1) continue;
+
 		mesg = IpcomMessageNew(IPCOM_MESSAGE_MIN_SIZE);
 		IpcomMessageInitVCCPDUHeader(mesg,
 				IPCOM_SERVICEID_TELEMATICS, 0x0104,
-				BUILD_SENDERHANDLEID(IPCOM_SERVICEID_TELEMATICS, 0x0104, IPCOM_OPTYPE_REQUEST, count),
-				IPCOM_PROTOCOL_VERSION, IPCOM_OPTYPE_REQUEST, 0, 0);
+				BUILD_SENDERHANDLEID(IPCOM_SERVICEID_TELEMATICS, 0x0104, IPCOM_OPTYPE_NOTIFICATION, count),
+				IPCOM_PROTOCOL_VERSION, IPCOM_OPTYPE_NOTIFICATION, 0, 0);
 		payload_buf = g_malloc0(16);
 		IpcomMessageSetPayloadBuffer(mesg, payload_buf, 16);
 		//}
@@ -101,7 +111,7 @@ gint main()
 		IpcomProtocolSendMessage(IpcomProtocolGetInstance(), connection, mesg, _RecvedCallback, NULL);
 		IpcomMessageUnref(mesg);
 
-		count++;
+		//g_usleep(1000000);
 	}
 	///}
 

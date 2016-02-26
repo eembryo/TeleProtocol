@@ -29,6 +29,8 @@ struct _IpcomService {
 	IpcomProtocol		*pProto;
 
 	IpcomServiceProcessMessage	ProcessMessage;
+	IpcomServiceProcessNoti		ProcessNotification;
+
 	gchar				priv_data[0];
 };
 

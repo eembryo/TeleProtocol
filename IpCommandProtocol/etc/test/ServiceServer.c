@@ -46,6 +46,14 @@ _ProcessMessage(IpcomService *service, const IpcomOpContextId *ctxId, IpcomMessa
 	return IPCOM_SERVICE_SUCCESS;
 }
 
+static IpcomServiceReturn
+_ProcessNoti(IpcomService *service, IpcomConnection *conn, IpcomMessage *mesg)
+{
+	DFUNCTION_START;
+
+	return IPCOM_SERVICE_SUCCESS;
+}
+
 static gboolean
 _OnNewConnection(IpcomConnection *conn, gpointer data)
 {
@@ -70,6 +78,7 @@ main() {
 	///[Application] register service ID
 	service = IpcomServiceNew(IPCOM_SERVICEID_TELEMATICS, 0);
 	service->ProcessMessage = _ProcessMessage;
+	service->ProcessNotification = _ProcessNoti;
 	IpcomServiceRegister(service);
 
 	///[Transport] Create connection with LISTEN mode

@@ -59,15 +59,8 @@ struct _IpcomMessage {
 // if size equals to zero, maximum message size is allocated.
 IpcomMessage *IpcomMessageNew(guint16 maxSize);
 
-static inline VCCPDUHeader *IpcomMessageGetVCCPDUHeader(IpcomMessage *mesg) {
-	return mesg->vccpdu_ptr;
-}
-static inline gboolean IpcomMessageInit(IpcomMessage *mesg) {
-	mesg->vccpdu_ptr = (struct _VCCPDUHeader *)mesg->message;
-	mesg->payload_ptr = (gpointer)mesg->vccpdu_ptr + sizeof(struct _VCCPDUHeader);
-	mesg->mesg_length = VCCPDUHEADER_SIZE;
-	return TRUE;
-}
+static inline VCCPDUHeader *IpcomMessageGetVCCPDUHeader(IpcomMessage *mesg)
+{ return mesg->vccpdu_ptr; }
 static inline guint16	IpcomMessageGetVCCPDUServiceID(IpcomMessage *mesg)
 { return g_ntohs(mesg->vccpdu_ptr->serviceID);}
 static inline guint16 	IpcomMessageGetVCCPDUOperationID(IpcomMessage *mesg)

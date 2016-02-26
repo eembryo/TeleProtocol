@@ -98,11 +98,19 @@ IpcomConnectionPushIncomingMessage(IpcomConnection *conn, IpcomMessage *mesg)
 	//	insert message to the queue
 	//} else {
 	IpcomProtocolHandleMessage(conn->protocol, conn, mesg);
-	IpcomMessageUnref(mesg);
 	//}
 	return 0;
 }
 
+gint
+IpcomConnectionTransmitMessage(IpcomConnection *conn, IpcomMessage *mesg)
+{
+	DFUNCTION_START;
+
+	conn->transport->transmit(conn->transport, conn, mesg);
+
+	return 0;
+}
 #if 0
 IpcomMessage *
 IpcomConnectionPopOutgoingMessage(IpcomConnection *conn)

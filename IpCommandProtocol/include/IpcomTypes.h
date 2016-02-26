@@ -52,10 +52,12 @@ typedef struct _IpcomTransportUDPv4 						IpcomTransportUDPv4;
 typedef IpcomServiceReturn 		(*IpcomReceiveMessageCallback)(const IpcomOpContextId *opContextId, IpcomMessage *mesg, gpointer userdata);
 typedef gboolean				(*IpcomServiceOnRecvNewConn)(IpcomService *service, IpcomConnection *conn);
 typedef IpcomServiceReturn		(*IpcomServiceProcessMessage)(IpcomService *service, const IpcomOpContextId *ctxId, IpcomMessage *mesg);
+typedef IpcomServiceReturn		(*IpcomServiceProcessNoti)(IpcomService *service, IpcomConnection *conn, IpcomMessage *mesg);
 
 /* IpcomTransport.h */
 
 /* IpcomOperationContext.h */
+typedef void					(*IpcomOpCtxDestroyNotify)(gpointer data);
 
 G_END_DECLS
 

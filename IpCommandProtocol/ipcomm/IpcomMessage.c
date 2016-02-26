@@ -33,6 +33,16 @@ _IpcomMessageFree(struct ref *r)
 	g_free(pMsg);
 }
 
+gboolean
+IpcomMessageInit(IpcomMessage *mesg) {
+	mesg->vccpdu_ptr = (struct _VCCPDUHeader *)mesg->message;
+	mesg->payload_ptr = (gpointer)mesg->vccpdu_ptr + sizeof(struct _VCCPDUHeader);
+	mesg->mesg_length = VCCPDUHEADER_SIZE;
+	ref_init(&mesg->_ref, _IpcomMessageFree);
+
+	return TRUE;
+}
+
 IpcomMessage *
 IpcomMessageNew(guint16 size)
 {
@@ -43,7 +53,7 @@ IpcomMessageNew(guint16 size)
 	//For compatibility
 	if (size == 0) alloc_size = IPCOM_MESSAGE_MAX_SIZE;
 	//
-	alloc_size = (size < IPCOM_MESSAGE_MIN_SIZE ? IPCOM_MESSAGE_MIN_SIZE : size);
+	else alloc_size = (size < IPCOM_MESSAGE_MIN_SIZE ? IPCOM_MESSAGE_MIN_SIZE : size);
 
 	g_assert(alloc_size <= IPCOM_MESSAGE_MAX_SIZE);
 
@@ -54,8 +64,6 @@ IpcomMessageNew(guint16 size)
 	}
 	pMsg->actual_size = alloc_size;
 	IpcomMessageInit(pMsg);
-
-	ref_init(&pMsg->_ref, _IpcomMessageFree);
 
 	return IpcomMessageRef(pMsg);
 

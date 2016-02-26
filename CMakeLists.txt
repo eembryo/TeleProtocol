@@ -19,7 +19,7 @@ cmake_minimum_required(VERSION 2.8.1)
 
 project(TEMIL_SERVICE C CXX)
 
-add_definitions(-DDEBUG -DENABLE_LOG_COLOR)
+add_definitions(-DDEBUG -DENABLE_LOG_COLOR -g)
 #add_definitions(-DTARGET_GEELY)
 
 set(TEMIL_IF_LIB temilinterface)

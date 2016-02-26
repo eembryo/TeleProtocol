@@ -54,7 +54,8 @@ _UDPv4Receive(IpcomTransport *transport, GSocket *socket)
 
 	DFUNCTION_START;
 
-	IpcomMessageInit(newMesg);
+	newMesg = IpcomMessageNew(IPCOM_MESSAGE_MAX_SIZE);
+
 	//sockaddr gets source address of the received packet
 	length = g_socket_receive_from(socket, &sockaddr, newMesg->message, newMesg->actual_size, NULL, &gerror);
 	if (gerror) {

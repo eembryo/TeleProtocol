@@ -39,6 +39,7 @@ IpcomConnection *IpcomConnectionRef(IpcomConnection *conn);
 void IpcomConnectionUnref(IpcomConnection *conn);
 gint IpcomConnectionPushOutgoingMessage(IpcomConnection *, IpcomMessage *);
 gint IpcomConnectionPushIncomingMessage(IpcomConnection *, IpcomMessage *);
+gint IpcomConnectionTransmitMessage(IpcomConnection *, IpcomMessage *);
 
 G_END_DECLS
 
