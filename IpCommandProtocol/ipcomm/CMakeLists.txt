@@ -5,7 +5,8 @@ set(SRCS
    ./IpcomProtocol.c
    ./IpcomService.c
    ./IpcomTransportUDPv4.c
-   ./IpcomOperationContext.c)
+   ./IpcomOperationContext.c
+   ./IpcomEnums.c)
 
 add_library(${TEMIL_IPCOMM_LIB} SHARED ${SRCS})
 target_link_libraries(${TEMIL_IPCOMM_LIB} ${LIBRARIES})

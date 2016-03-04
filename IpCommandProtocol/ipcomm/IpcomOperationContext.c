@@ -6,6 +6,7 @@
 #include <string.h>
 #include <dprint.h>
 
+
 gboolean
 IpcomOpContextIdEqual(gconstpointer aOpContextId, gconstpointer bOpContextId)
 {
@@ -43,34 +44,52 @@ IpcomOpContextCreate(IpcomConnection *conn, guint32 senderHandleId, guint opType
 	ctx->recvCallback 			= recv_cb;
 	ctx->cb_data 				= userdata;
 	ctx->status					= IPCOM_SERVICE_STATUS_NONE;
+	ctx->numberOfRetries		= 0;
 
 	return ctx;
 }
 
-/*
+
 gboolean
-IpcomOpContextSetTimer(IpcomOpContext *opContext, GSource *timerSource)
+IpcomOpContextSetTimer(IpcomOpContext *opContext, gint milliseconds, GSourceFunc func)
 {
-	if (opContext->timer) {
-		g_source_remove(opContext->timer);
+	GSource *timeoutSource;
+
+	if (milliseconds <= 0) {
+		DWARN("Timer should have positive interval value. But milliseconds is %d.\n", milliseconds);
+		return FALSE;
 	}
-	opContext->timer = timerSource;
+	timeoutSource = g_timeout_source_new(milliseconds);			g_assert(timeoutSource);
+	g_source_set_callback(timeoutSource, func, opContext, NULL);
+	g_source_attach(timeoutSource, IpcomProtocolGetMainContext());
+	opContext->timer = timeoutSource;
+	g_source_unref(timeoutSource);
 
 	return TRUE;
 }
 
+
 gboolean
-IpcomOpContextClearTimer(IpcomOpContext *opContext)
+IpcomOpContextUnsetTimer(IpcomOpContext *opContext)
+{
+	opContext->timer = NULL;
+	opContext->numberOfRetries = 0;
+	return TRUE;
+}
+
+gboolean
+IpcomOpContextCancelTimer(IpcomOpContext *opContext)
 {
 	if (opContext->timer) g_source_remove(opContext->timer);
-
+	opContext->timer = NULL;
+	opContext->numberOfRetries = 0;
 	return TRUE;
 }
-*/
+
 void
 IpcomOpContextDestroy(IpcomOpContext *ctx)
 {
-	//IpcomOpContextClearTimer(ctx);
+	if (ctx->timer) IpcomOpContextCancelTimer(ctx);
 	IpcomConnectionUnref(ctx->ctxId.connection);
 	if (ctx->message) IpcomMessageUnref(ctx->message);
 

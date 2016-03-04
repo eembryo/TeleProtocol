@@ -98,6 +98,14 @@ typedef enum {
 	OPCONTEXT_TRIGGER_FINALIZE
 } IpcomProtocolOpContextTriggers;
 
+/// configurable parameters
+extern gint defaultTimeoutWFA;
+extern gint defaultTimeoutWFR;
+extern gint incraseTimerValueWFA;
+extern gint incraseTimerValueWFR;
+extern gint numberOfRetriesWFA;
+extern gint numberOfRetriesWFR;
+
 G_END_DECLS
 
 #endif

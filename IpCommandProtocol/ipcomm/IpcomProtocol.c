@@ -33,6 +33,11 @@ struct _IpcomProtocol {
 	GMainContext *pMainContext;
 };
 
+static gboolean _WFRTimerExpired(gpointer data);
+static gboolean _WFATimerExpired(gpointer data);
+static gint _GetWFRTimeout(gint nOfRetries);
+static gint _GetWFATimeout(gint nOfRetries);
+
 IpcomProtocol*
 IpcomProtocolInit(GMainContext *gcontext)
 {
@@ -59,11 +64,17 @@ IpcomProtocolGetInstance()
 {
 	if (gIpcomProtocolInstance == NULL) {
 		DPRINT("IpcomProtocol will be initialized with default glib main context.\n");
-		DPRINT("If you want to use specific main context. Call IpcomProtocolInit() before calling this function.\n");
+		DPRINT("If you want to use specific main context. Call IpcomProtocolInit() at the beginning of your program.\n");
 		IpcomProtocolInit(g_main_context_default());
 	}
 
 	return gIpcomProtocolInstance;
+}
+
+GMainContext *
+IpcomProtocolGetMainContext()
+{
+	return IpcomProtocolGetInstance()->pMainContext;
 }
 
 gboolean
@@ -219,19 +230,6 @@ _IpcomProtocolHandleREQUEST(IpcomProtocol *proto, IpcomOpContext *opContext, Ipc
 	return -1;
 }
 
-/*
-#define IPCOM_DEFAULT_WFA  1000	//miliseconds
-#define IPCOM_DEFAULT_WFR  1000
-
-static gboolean
-_WFATimerExpired(gpointer data)
-{
-	IpcomOpContext *ctx = (IpcomOpContext *)data;
-
-
-	return G_SOURCE_CONTINUE;
-}
-*/
 static gint
 _IpcomProtocolHandleRESPONSE(IpcomProtocol *proto, IpcomOpContext *opContext, IpcomMessage *mesg)
 {
@@ -322,15 +320,21 @@ IpcomProtocolSendMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessa
 	switch(IpcomMessageGetVCCPDUOpType(mesg)) {
 	case IPCOM_OPTYPE_REQUEST:
 	case IPCOM_OPTYPE_SETREQUEST:
-		//case IPPROTO_OPTYPE_NOTIFICATION_REQUEST:
+	case IPCOM_OPTYPE_NOTIFICATION_REQUEST:
 		ctx = IpcomOpContextCreate(ctxId.connection, ctxId.senderHandleId, IpcomMessageGetVCCPDUOpType(mesg), recv_cb, userdata);
 		if (!IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_SEND_REQUEST)) {
 			goto SendMessage_failed;
 		}
 		IpcomOpContextSetMessage(ctx, mesg);
 		g_hash_table_insert(proto->pOpContextHash, (gpointer)IpcomOpContextGetContextId(ctx), ctx);
-		///<---- start WFA timer
 		IpcomConnectionTransmitMessage(conn, mesg);
+		///start WFA timer
+		IpcomOpContextCancelTimer(ctx);
+		if (!IpcomOpContextSetTimer(ctx, _GetWFRTimeout(ctx->numberOfRetries), _WFATimerExpired)) {
+			IpcomOpContextDestroy(ctx);
+			return 0;
+		}
+
 		break;
 	case IPCOM_OPTYPE_SETREQUEST_NORETURN:
 	case IPCOM_OPTYPE_NOTIFICATION:
@@ -340,8 +344,13 @@ IpcomProtocolSendMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessa
 		}
 		IpcomOpContextSetMessage(ctx, mesg);
 		g_hash_table_insert(proto->pOpContextHash, (gpointer)IpcomOpContextGetContextId(ctx), ctx);
-		///<---- start WFA timer
 		IpcomConnectionTransmitMessage(conn, mesg);
+		///start WFA timer
+		IpcomOpContextCancelTimer(ctx);
+		if (!IpcomOpContextSetTimer(ctx, _GetWFRTimeout(ctx->numberOfRetries), _WFATimerExpired)) {
+			IpcomOpContextDestroy(ctx);
+			return 0;
+		}
 		break;
 	case IPCOM_OPTYPE_NOTIFICATION_CYCLIC:
 		IpcomConnectionTransmitMessage(conn, mesg);
@@ -391,9 +400,14 @@ IpcomProtocolRepondMessage(IpcomProtocol *proto, const IpcomOpContextId *opConte
 	IpcomOpContextSetMessage(ctx, mesg);
 	//1. migrate status to OPCONTEXT_STATUS_RESPONSE_SENT
 	IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_SEND_RESPONSE);
-	//2. start WFA timer
-	//3. send RESPONSE message
+	//2. send RESPONSE message
 	IpcomConnectionTransmitMessage(IpcomOpContextGetConnection(ctx), mesg);
+	//3. start WFA timer
+	IpcomOpContextCancelTimer(ctx);
+	if (!IpcomOpContextSetTimer(ctx, _GetWFRTimeout(ctx->numberOfRetries), _WFATimerExpired)) {
+		IpcomOpContextDestroy(ctx);
+		return 0;
+	}
 
 	if (IpcomOpContextGetStatus(ctx) == OPCONTEXT_STATUS_FINALIZE) g_hash_table_remove(proto->pOpContextHash, IpcomOpContextGetContextId(ctx));
 	return IpcomMessageGetPacketSize(mesg);
@@ -466,4 +480,91 @@ IpcomProtocolHandleMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMes
 HandleMessage_failed:
 	IpcomMessageUnref(mesg);
 	return -1;
+}
+
+static gint
+_GetWFATimeout(gint nOfRetries)
+{
+	gint usedTimeoutWFA = 0;
+
+	if (nOfRetries >= numberOfRetriesWFA) {
+		DWARN("The number of retries(%d) should be lower than maximum value(%d)\n.", nOfRetries, numberOfRetriesWFA);
+		return -1;
+	}
+
+	usedTimeoutWFA = defaultTimeoutWFA * (incraseTimerValueWFA^nOfRetries);
+
+	return usedTimeoutWFA;
+}
+
+static gint
+_GetWFRTimeout(gint nOfRetries)
+{
+	gint usedTimeoutWFR = 0;
+
+	if (nOfRetries >= numberOfRetriesWFR) {
+		DWARN("The number of retries(%d) should be lower than maximum value(%d)\n.", nOfRetries, numberOfRetriesWFA);
+		return -1;
+	}
+
+	usedTimeoutWFR = defaultTimeoutWFR * (incraseTimerValueWFR^nOfRetries);
+
+	return usedTimeoutWFR;
+}
+
+static gboolean
+_WFATimerExpired(gpointer data)
+{
+	IpcomOpContext *ctx = (IpcomOpContext *)data;
+	gint usedTimeoutWFA;
+	GSource *timeoutSource;
+
+	DFUNCTION_START;
+
+	///check whether retransmission is needed or not
+	ctx->numberOfRetries++;
+	if (ctx->numberOfRetries >= numberOfRetriesWFA) {
+		/// We give up to transmit this message.
+		DWARN("Give up to transmit. Destroying this operation.\n");
+		IpcomOpContextUnsetTimer(ctx);
+		IpcomOpContextDestroy(ctx);
+		return G_SOURCE_REMOVE;
+	}
+	///retransmit IpcomMessage
+	g_assert(ctx->message);
+	IpcomConnectionTransmitMessage(IpcomOpContextGetConnection(ctx), ctx->message);
+	///Reset timer
+	usedTimeoutWFA = _GetWFATimeout(ctx->numberOfRetries);	g_assert(usedTimeoutWFA > 0);
+	IpcomOpContextSetTimer(ctx, usedTimeoutWFA, _WFATimerExpired);
+	g_source_unref(timeoutSource);
+
+	return G_SOURCE_REMOVE;
+}
+
+static gboolean
+_WFRTimerExpired(gpointer data)
+{
+	IpcomOpContext *ctx = (IpcomOpContext *)data;
+	gint usedTimeoutWFR;
+	GSource *timeoutSource;
+
+	DFUNCTION_START;
+
+	///check whether retransmission is needed or not
+	ctx->numberOfRetries++;
+	if (ctx->numberOfRetries >= numberOfRetriesWFR) {
+		/// We give up to transmit this message.
+		DWARN("Give up to transmit. Destroying this operation.\n");
+		IpcomOpContextUnsetTimer(ctx);
+		IpcomOpContextDestroy(ctx);
+		return G_SOURCE_REMOVE;
+	}
+	///retransmit IpcomMessage
+	g_assert(ctx->message);
+	IpcomConnectionTransmitMessage(IpcomOpContextGetConnection(ctx), ctx->message);
+	///Reset timer
+	usedTimeoutWFR = _GetWFRTimeout(ctx->numberOfRetries);	g_assert(usedTimeoutWFR > 0);
+	IpcomOpContextSetTimer(ctx, usedTimeoutWFR, _WFRTimerExpired);
+
+	return G_SOURCE_REMOVE;
 }

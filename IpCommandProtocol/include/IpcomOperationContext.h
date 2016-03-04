@@ -36,6 +36,7 @@ struct _IpcomOpContext
 	gint								serviceId;
 	IpcomMessage						*message;
 	GSource								*timer;
+	gint								numberOfRetries;
 	IpcomOpCtxDestroyNotify				NotifyDestroyed;
 };
 
@@ -62,7 +63,8 @@ void										IpcomOpContextDestroy(IpcomOpContext *ctx);
 void										IpcomOpContextSetMessage(IpcomOpContext *ctx, IpcomMessage *mesg);
 gboolean									IpcomOpContextSetStatus(IpcomOpContext *ctx, gint status);
 gboolean									IpcomOpContextTrigger(IpcomOpContext *ctx, IpcomProtocolOpContextTriggers trigger);
-//gboolean									IpcomOpContextSetTimer(IpcomOpContext *opContext, GSource timerSource);
-//gboolean									IpcomOpContextClearTimer(IpcomOpContext *opContext);
+gboolean									IpcomOpContextSetTimer(IpcomOpContext *opContext, gint milliseconds, GSourceFunc func);
+gboolean									IpcomOpContextCancelTimer(IpcomOpContext *opContext);
+gboolean									IpcomOpContextUnsetTimer(IpcomOpContext *opContext);
 
 #endif /* IPCOMMANDPROTOCOL_INCLUDE_IPCOMOPERATIONCONTEXT_H_ */

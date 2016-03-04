@@ -25,12 +25,12 @@ G_BEGIN_DECLS
 
 IpcomProtocol*	IpcomProtocolInit(GMainContext *gcontext);
 IpcomProtocol*	IpcomProtocolGetInstance();
+GMainContext *	IpcomProtocolGetMainContext();
 gboolean		IpcomProtocolRegisterService(IpcomProtocol *, IpcomService *);
 //gboolean	IpcomProtocolUnregisterService(IpcomProtocol *, guint serviceId);	//NOT implemented yet
 gint			IpcomProtocolSendMessage(IpcomProtocol *, IpcomConnection *conn, IpcomMessage *mesg, IpcomReceiveMessageCallback recv_cb, void *userdata);
 gint			IpcomProtocolRepondMessage(IpcomProtocol *, const IpcomOpContextId *opContextId, IpcomMessage *mesg);
 gint			IpcomProtocolHandleMessage(IpcomProtocol *, IpcomConnection *conn, IpcomMessage *mesg);
-//gint			IpcomProtocolProcessDone(IpcomProtocol *proto, const IpcomOpContextId *opContextId, IpcomServiceReturn result);
 
 G_END_DECLS
 #endif
