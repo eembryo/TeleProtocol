@@ -76,6 +76,9 @@ gint main()
 	main_loop = g_main_loop_new(context, FALSE);
 	g_main_context_unref(context);
 
+	//initialize IpcomProtocol with custom context
+	IpcomProtocolInit(context);
+	
 	///[Application] register service ID
 	service = IpcomServiceNew(IPCOM_SERVICEID_TELEMATICS, 0);
 	service->ProcessMessage = _ProcessMessage;
@@ -97,7 +100,7 @@ gint main()
 		DPRINT("count = %d.\n", count);
 		g_main_context_iteration(context, TRUE);
 		/// Generate new IpcomMessage {
-		//if (count != 1) continue;
+		if (count != 1) continue;
 
 		mesg = IpcomMessageNew(IPCOM_MESSAGE_MIN_SIZE);
 		IpcomMessageInitVCCPDUHeader(mesg,

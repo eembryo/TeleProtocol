@@ -101,8 +101,8 @@ typedef enum {
 /// configurable parameters
 extern gint defaultTimeoutWFA;
 extern gint defaultTimeoutWFR;
-extern gint incraseTimerValueWFA;
-extern gint incraseTimerValueWFR;
+extern gfloat increaseTimerValueWFA;
+extern gfloat increaseTimerValueWFR;
 extern gint numberOfRetriesWFA;
 extern gint numberOfRetriesWFR;
 

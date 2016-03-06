@@ -24,6 +24,7 @@
 #include <IpcomOperationContext.h>
 #include <IpcomEnums.h>
 #include <dprint.h>
+#include <math.h>
 
 static IpcomProtocol *gIpcomProtocolInstance = NULL;
 
@@ -492,7 +493,7 @@ _GetWFATimeout(gint nOfRetries)
 		return -1;
 	}
 
-	usedTimeoutWFA = defaultTimeoutWFA * (incraseTimerValueWFA^nOfRetries);
+	usedTimeoutWFA = defaultTimeoutWFA * powf(increaseTimerValueWFA,nOfRetries);
 
 	return usedTimeoutWFA;
 }
@@ -507,7 +508,7 @@ _GetWFRTimeout(gint nOfRetries)
 		return -1;
 	}
 
-	usedTimeoutWFR = defaultTimeoutWFR * (incraseTimerValueWFR^nOfRetries);
+	usedTimeoutWFR = defaultTimeoutWFR * powf(increaseTimerValueWFR,nOfRetries);
 
 	return usedTimeoutWFR;
 }
@@ -517,7 +518,6 @@ _WFATimerExpired(gpointer data)
 {
 	IpcomOpContext *ctx = (IpcomOpContext *)data;
 	gint usedTimeoutWFA;
-	GSource *timeoutSource;
 
 	DFUNCTION_START;
 
@@ -536,7 +536,6 @@ _WFATimerExpired(gpointer data)
 	///Reset timer
 	usedTimeoutWFA = _GetWFATimeout(ctx->numberOfRetries);	g_assert(usedTimeoutWFA > 0);
 	IpcomOpContextSetTimer(ctx, usedTimeoutWFA, _WFATimerExpired);
-	g_source_unref(timeoutSource);
 
 	return G_SOURCE_REMOVE;
 }
@@ -546,7 +545,6 @@ _WFRTimerExpired(gpointer data)
 {
 	IpcomOpContext *ctx = (IpcomOpContext *)data;
 	gint usedTimeoutWFR;
-	GSource *timeoutSource;
 
 	DFUNCTION_START;
 

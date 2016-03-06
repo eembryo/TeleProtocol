@@ -1,4 +1,5 @@
 #include <glib.h>
+#include <IpcomProtocol.h>
 #include <IpcomOperationContext.h>
 #include <IpcomEnums.h>
 #include <IpcomMessage.h>
@@ -80,7 +81,7 @@ IpcomOpContextUnsetTimer(IpcomOpContext *opContext)
 gboolean
 IpcomOpContextCancelTimer(IpcomOpContext *opContext)
 {
-	if (opContext->timer) g_source_remove(opContext->timer);
+	if (opContext->timer) g_source_destroy(opContext->timer);
 	opContext->timer = NULL;
 	opContext->numberOfRetries = 0;
 	return TRUE;

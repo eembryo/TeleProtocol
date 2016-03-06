@@ -49,6 +49,7 @@ set(LIBRARIES
     ${GIO_UNIX_LDFLAGS}
     rt
     pthread
+    m
     )
 
 add_subdirectory(IpCommandProtocol)
