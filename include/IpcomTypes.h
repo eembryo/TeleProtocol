@@ -57,7 +57,16 @@ typedef IpcomServiceReturn		(*IpcomServiceProcessNoti)(IpcomService *service, Ip
 /* IpcomTransport.h */
 
 /* IpcomOperationContext.h */
-typedef void					(*IpcomOpCtxDestroyNotify)(gpointer data);
+/**
+ * IpcomOpCtxDestroyNotify:
+ * @opContextId: Operation Context ID
+ * @code:	0 - Successfully finished
+ * 			1 - WFA timer expired
+ * 			2 - WFR timer expired
+ * 			3 - failed to transmit
+ * @userdata: data which was registered
+ */
+typedef void					(*IpcomOpCtxDestroyNotify)(IpcomOpContextId *opContextId, gint code, gpointer userdata);
 
 G_END_DECLS
 

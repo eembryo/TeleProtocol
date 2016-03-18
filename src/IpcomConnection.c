@@ -44,6 +44,7 @@ static void _IpcomConnectionFree(struct ref *r)
 IpcomConnection *
 IpcomConnectionRef(IpcomConnection *conn)
 {
+	g_assert(conn);
 	ref_inc(&conn->_ref);
 	return conn;
 }
@@ -51,6 +52,7 @@ IpcomConnectionRef(IpcomConnection *conn)
 void
 IpcomConnectionUnref(IpcomConnection *conn)
 {
+	g_assert(conn);
 	ref_dec(&conn->_ref);
 }
 
@@ -107,9 +109,7 @@ IpcomConnectionTransmitMessage(IpcomConnection *conn, IpcomMessage *mesg)
 {
 	DFUNCTION_START;
 
-	conn->transport->transmit(conn->transport, conn, mesg);
-
-	return 0;
+	return conn->transport->transmit(conn->transport, conn, mesg);
 }
 #if 0
 IpcomMessage *

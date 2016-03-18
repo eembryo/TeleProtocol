@@ -1,2 +1,0 @@
-# TeleProtocol
-abc

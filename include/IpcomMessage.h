@@ -27,7 +27,7 @@ G_BEGIN_DECLS
 #define VCCPDUHEADER_SIZE				16
 #define IPCOM_MESSAGE_MIN_SIZE 			VCCPDUHEADER_SIZE
 #define IPCOM_MESSAGE_MAX_SIZE 			1472	//MTU - IP_HEADER_SIZE(20) - UDP_HEADER_SIZE(8)
-#define BUILD_SENDERHANDLEID(service, operation, optype, seqNR) (guint32)(((service%0xFF)<<24) + ((optype%0xFF)<<16) + ((operation%0xFF)<<8) + (guint8)seqNR)
+#define BUILD_SENDERHANDLEID(service, operation, optype, seqNR) (guint32)(((service&0xFF)<<24) + ((operation&0xFF)<<16) + ((optype&0xFF)<<8) + (guint8)seqNR)
 #define IPCOM_ERROR_MESSAGE_SIZE	VCCPDUHEADER_SIZE + 3
 #define IPCOM_ACK_MESSAGE_SIZE		VCCPDUHEADER_SIZE
 

@@ -5,4 +5,4 @@ command messages. And It analyzes PDU header from the packets: payload is not su
 * Usage
 Before you apply this script, you may have to capture IP command messages using tcpdump.
 
-$ wireshard -X lua_script:ipcomm_dissector.lua <tcpdump file>
+$ wireshark -X lua_script:ipcomm_dissector.lua <tcpdump file>

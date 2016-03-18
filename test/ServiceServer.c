@@ -28,20 +28,23 @@ _ProcessMessage(IpcomService *service, const IpcomOpContextId *ctxId, IpcomMessa
 
 	DFUNCTION_START;
 
-	/// You can get service specific data
-	/// priv = IpcomServiceGetPrivData(service);
-	/// Generate a response message
-	newMsg = IpcomMessageNew(IPCOM_MESSAGE_MIN_SIZE);
-	IpcomMessageInitVCCPDUHeader(newMsg,
-			IPCOM_SERVICEID_TELEMATICS, IpcomMessageGetVCCPDUOperationID(mesg),
-			IpcomMessageGetVCCPDUSenderHandleID(mesg),
-			IPCOM_PROTOCOL_VERSION, IPCOM_OPTYPE_RESPONSE, 0, 0);
-	payload_buf = g_malloc0(16);
-	IpcomMessageSetPayloadBuffer(newMsg, payload_buf, 16);
+	if (IpcomMessageGetVCCPDUOpType(mesg) == IPCOM_OPTYPE_REQUEST ||
+			IpcomMessageGetVCCPDUOpType(mesg) == IPCOM_OPTYPE_SETREQUEST) {
+		/// You can get service specific data
+		/// priv = IpcomServiceGetPrivData(service);
+		/// Generate a response message
+		newMsg = IpcomMessageNew(IPCOM_MESSAGE_MIN_SIZE);
+		IpcomMessageInitVCCPDUHeader(newMsg,
+				IPCOM_SERVICEID_TELEMATICS, IpcomMessageGetVCCPDUOperationID(mesg),
+				IpcomMessageGetVCCPDUSenderHandleID(mesg),
+				IPCOM_PROTOCOL_VERSION, IPCOM_OPTYPE_RESPONSE, 0, 0);
+		payload_buf = g_malloc0(16);
+		IpcomMessageSetPayloadBuffer(newMsg, payload_buf, 16);
 
-	/// Send the response message
-	IpcomProtocolRepondMessage(service->pProto, ctxId, newMsg);
-	IpcomMessageUnref(newMsg);
+		/// Send the response message
+		IpcomProtocolRepondMessage(service->pProto, ctxId, newMsg);
+		IpcomMessageUnref(newMsg);
+	}
 
 	return IPCOM_SERVICE_SUCCESS;
 }
@@ -89,15 +92,16 @@ main() {
 	///[Transport] Start to listen on specific IP address and port
 	IpcomTransportListen(transport, "127.0.0.1", 50000, _OnNewConnection, NULL);
 
-
-
+	g_main_loop_run(main_loop);
 	///gmainloop run {
+	/*
 	count = 0;
-	while (count < 100) {
+	while (1) {
 		DPRINT("count = %d.\n", count);
 		g_main_context_iteration(context, TRUE);
 		count++;
 	}
 	///}
+	*/
 	return 0;
 }

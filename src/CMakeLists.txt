@@ -8,6 +8,6 @@ set(SRCS
    ./IpcomOperationContext.c
    ./IpcomEnums.c)
 
-add_library(${TEMIL_IPCOMM_LIB} SHARED ${SRCS})
-target_link_libraries(${TEMIL_IPCOMM_LIB} ${LIBRARIES})
-install(TARGETS ${TEMIL_IPCOMM_LIB} LIBRARY  DESTINATION /app/lib)
+add_library(${IPCOMM_LIB} SHARED ${SRCS})
+target_link_libraries(${IPCOMM_LIB} ${LIBRARIES})
+install(TARGETS ${IPCOMM_LIB} LIBRARY  DESTINATION /app/lib)

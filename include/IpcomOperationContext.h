@@ -19,6 +19,7 @@
 
 #include <glib.h>
 #include <IpcomTypes.h>
+#include <ref_count.h>
 
 struct _IpcomOpContextId
 {
@@ -38,6 +39,9 @@ struct _IpcomOpContext
 	GSource								*timer;
 	gint								numberOfRetries;
 	IpcomOpCtxDestroyNotify				NotifyDestroyed;
+	gint								result;
+
+	struct ref							_ref;
 };
 
 static inline IpcomConnection *				IpcomOpContextGetConnection(IpcomOpContext *ctx)
@@ -52,19 +56,24 @@ static inline IpcomReceiveMessageCallback	IpcomOpContextGetRecvCallback(const Ip
 { return ctx->recvCallback;}
 static inline void *						IpcomOpContextGetRecvCallbackData(const IpcomOpContext *ctx)
 { return ctx->cb_data;}
-static inline const IpcomOpContextId *		IpcomOpContextGetContextId(IpcomOpContext *ctx)
+static inline IpcomOpContextId *		IpcomOpContextGetContextId(IpcomOpContext *ctx)
 { return &ctx->ctxId; }
 static inline guint							IpcomOpContextIdHashFunc(const gconstpointer key)
 { return ((struct _IpcomOpContextId *)key)->senderHandleId; }
 
 gboolean 									IpcomOpContextIdEqual(gconstpointer aOpContextId, gconstpointer bOpContextId);
 IpcomOpContext *							IpcomOpContextCreate(IpcomConnection *conn, guint32 senderHandleId, guint opType,	IpcomReceiveMessageCallback recv_cb, void *userdata);
-void										IpcomOpContextDestroy(IpcomOpContext *ctx);
+IpcomOpContext *							IpcomOpContextNewAndRegister(IpcomConnection *conn, guint32 senderHandleId, guint opType,	IpcomReceiveMessageCallback recv_cb, void *userdata);
+//void										IpcomOpContextDestroy(IpcomOpContext *ctx);
 void										IpcomOpContextSetMessage(IpcomOpContext *ctx, IpcomMessage *mesg);
 gboolean									IpcomOpContextSetStatus(IpcomOpContext *ctx, gint status);
-gboolean									IpcomOpContextTrigger(IpcomOpContext *ctx, IpcomProtocolOpContextTriggers trigger);
+gint										IpcomOpContextTrigger(IpcomOpContext *ctx, IpcomProtocolOpContextTriggers trigger);
 gboolean									IpcomOpContextSetTimer(IpcomOpContext *opContext, gint milliseconds, GSourceFunc func);
 gboolean									IpcomOpContextCancelTimer(IpcomOpContext *opContext);
 gboolean									IpcomOpContextUnsetTimer(IpcomOpContext *opContext);
+static void									IpcomOpContextSetOnDestroy(IpcomOpContext *ctx, IpcomOpCtxDestroyNotify OnNotify)
+{ ctx->NotifyDestroyed = OnNotify; }
+IpcomOpContext*								IpcomOpContextRef(IpcomOpContext *ctx);
+void										IpcomOpContextUnref(IpcomOpContext *ctx);
 
 #endif /* IPCOMMANDPROTOCOL_INCLUDE_IPCOMOPERATIONCONTEXT_H_ */
