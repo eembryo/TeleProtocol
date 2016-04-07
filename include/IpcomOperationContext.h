@@ -19,7 +19,9 @@
 
 #include <glib.h>
 #include <IpcomTypes.h>
+#include <IpcomOpStateMachine.h>
 #include <ref_count.h>
+#include <math.h>
 
 struct _IpcomOpContextId
 {
@@ -30,49 +32,77 @@ struct _IpcomOpContextId
 struct _IpcomOpContext
 {
 	struct _IpcomOpContextId			ctxId;
-	IpcomReceiveMessageCallback			recvCallback;
-	void 								*cb_data;
-	gint								opType;
-	gint								status;
-	gint								serviceId;
+	/// operation information
+	guint16								serviceId;
+	guint16								operationId;
+	guint8								protoVersion;
+	guint8								opType;
 	IpcomMessage						*message;
+
+	/// operation state
+	IpcomOpState						mOpState;
+
+	/// timer-related
 	GSource								*timer;
 	gint								numberOfRetries;
+	gint								nWFAMaxRetries;
+	gint								nWFRMaxRetries;
+	gint 								nWFABaseTimeout;
+	gint 								nWFRBaseTimeout;
+	gfloat 								nWFAIncreaseTimeout;
+	gfloat 								nWFRIncreaseTimeout;
+	gboolean							(*OnWFAExpired)(gpointer data);
+	gboolean							(*OnWFRExpired)(gpointer data);
+
+	///callback functions
 	IpcomOpCtxDestroyNotify				NotifyDestroyed;
-	gint								result;
+	IpcomReceiveMessageCallback			recvCallback;
+	void 								*cb_data;
 
 	struct ref							_ref;
 };
 
-static inline IpcomConnection *				IpcomOpContextGetConnection(IpcomOpContext *ctx)
+static inline IpcomConnection*				IpcomOpContextGetConnection(IpcomOpContext *ctx)
 { return ctx->ctxId.connection; }
 static inline guint32 						IpcomOpContextGetSenderHandleID(const IpcomOpContext *ctx)
 { return ctx->ctxId.senderHandleId;}
-static inline gint 							IpcomOpContextGetType(const IpcomOpContext *ctx)
+static inline guint16						IpcomOpContextGetServiceID(const IpcomOpContext *ctx)
+{ return ctx->serviceId; }
+static inline guint16						IpcomOpContextGetOperationID(const IpcomOpContext *ctx)
+{ return ctx->operationId; }
+static inline guint8						IpcomOpContextGetProtoVersion(const IpcomOpContext *ctx)
+{ return ctx->protoVersion; }
+static inline guint8 						IpcomOpContextGetType(const IpcomOpContext *ctx)
 { return ctx->opType; }
-static inline gint							IpcomOpContextGetStatus(const IpcomOpContext *ctx)
-{ return ctx->status; }
 static inline IpcomReceiveMessageCallback	IpcomOpContextGetRecvCallback(const IpcomOpContext *ctx)
 { return ctx->recvCallback;}
-static inline void *						IpcomOpContextGetRecvCallbackData(const IpcomOpContext *ctx)
+static inline void*							IpcomOpContextGetRecvCallbackData(const IpcomOpContext *ctx)
 { return ctx->cb_data;}
-static inline IpcomOpContextId *		IpcomOpContextGetContextId(IpcomOpContext *ctx)
+static inline IpcomOpContextId*				IpcomOpContextGetContextId(IpcomOpContext *ctx)
 { return &ctx->ctxId; }
+static inline IpcomMessage*					IpcomOpContextGetMessage(IpcomOpContext *ctx)
+{ return ctx->message; }
 static inline guint							IpcomOpContextIdHashFunc(const gconstpointer key)
 { return ((struct _IpcomOpContextId *)key)->senderHandleId; }
-
+static inline IpcomProtocolOpContextStatus IpcomOpContextGetState(IpcomOpContext *ctx)
+{ return ctx->mOpState.nState; }
+static inline gint							CalculateUsedTimeout(gint baseTimeoutValue, gint increaseTimeoutValue, gint nOfRetries) {
+	gint usedTimeoutValue = baseTimeoutValue * powf(increaseTimeoutValue, nOfRetries);
+	return usedTimeoutValue;
+}
 gboolean 									IpcomOpContextIdEqual(gconstpointer aOpContextId, gconstpointer bOpContextId);
-IpcomOpContext *							IpcomOpContextCreate(IpcomConnection *conn, guint32 senderHandleId, guint opType,	IpcomReceiveMessageCallback recv_cb, void *userdata);
-IpcomOpContext *							IpcomOpContextNewAndRegister(IpcomConnection *conn, guint32 senderHandleId, guint opType,	IpcomReceiveMessageCallback recv_cb, void *userdata);
-//void										IpcomOpContextDestroy(IpcomOpContext *ctx);
+IpcomOpContext *							IpcomOpContextNewAndRegister(IpcomConnection *conn, guint32 senderHandleId, guint16 serviceId, guint16 operationId, guint8 protoVersion, guint8 opType);
+gboolean									IpcomOpContextSetCallbacks(IpcomOpContext *opContext, IpcomReceiveMessageCallback recv_cb, IpcomOpCtxDestroyNotify OnNotify, void *userdata);
 void										IpcomOpContextSetMessage(IpcomOpContext *ctx, IpcomMessage *mesg);
-gboolean									IpcomOpContextSetStatus(IpcomOpContext *ctx, gint status);
-gint										IpcomOpContextTrigger(IpcomOpContext *ctx, IpcomProtocolOpContextTriggers trigger);
+gint										IpcomOpContextTrigger(IpcomOpContext *ctx, IpcomProtocolOpContextTriggers trigger, gpointer data);
+gboolean									IpcomOpContextUnsetTimer(IpcomOpContext *opContext);
+static inline void							IpcomOpContextSetOnDestroy(IpcomOpContext *ctx, IpcomOpCtxDestroyNotify OnNotify)
+{ ctx->NotifyDestroyed = OnNotify; }
+gboolean									IpcomOpContextStartWFATimer();
+gboolean									IpcomOpContextStartWFRTimer();
 gboolean									IpcomOpContextSetTimer(IpcomOpContext *opContext, gint milliseconds, GSourceFunc func);
 gboolean									IpcomOpContextCancelTimer(IpcomOpContext *opContext);
-gboolean									IpcomOpContextUnsetTimer(IpcomOpContext *opContext);
-static void									IpcomOpContextSetOnDestroy(IpcomOpContext *ctx, IpcomOpCtxDestroyNotify OnNotify)
-{ ctx->NotifyDestroyed = OnNotify; }
+
 IpcomOpContext*								IpcomOpContextRef(IpcomOpContext *ctx);
 void										IpcomOpContextUnref(IpcomOpContext *ctx);
 

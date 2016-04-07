@@ -41,7 +41,7 @@ _ProcessMessage(IpcomService *service, const IpcomOpContextId *ctxId, IpcomMessa
 	IpcomMessageSetPayloadBuffer(newMsg, payload_buf, 16);
 
 	/// Send the response message
-	IpcomProtocolRepondMessage(service->pProto, ctxId, newMsg);
+	IpcomProtocolRespondMessageFull(service->pProto, ctxId, newMsg, NULL, NULL);
 	IpcomMessageUnref(newMsg);
 
 	return IPCOM_SERVICE_SUCCESS;
@@ -74,13 +74,12 @@ SendingThread(gpointer data)
 {
 	IpcomMessage 	*mesg = NULL;
 	gpointer		payload_buf;
-	int				count = 0;
+	guint				count = 0;
 	GError			*gerror;
 
 
-	while(count < 300) {
+	while(1) {
 		gerror = NULL;
-		count++;
 		//DPRINT("count = %d.\n", count);
 		if (count%7 == 4) {
 			count += 2;
@@ -88,14 +87,12 @@ SendingThread(gpointer data)
 		mesg = IpcomMessageNew(IPCOM_MESSAGE_MIN_SIZE);
 		IpcomMessageInitVCCPDUHeader(mesg,
 				IPCOM_SERVICEID_TELEMATICS, 0x0104,
-				//BUILD_SENDERHANDLEID(IPCOM_SERVICEID_TELEMATICS, 0x0104, IPCOM_OPTYPE_NOTIFICATION, count),
 				BUILD_SENDERHANDLEID(IPCOM_SERVICEID_TELEMATICS, 0x0104, count%7, count),
 				IPCOM_PROTOCOL_VERSION, count%7, 0, 0);
 		payload_buf = g_malloc0(16);
 		IpcomMessageSetPayloadBuffer(mesg, payload_buf, 16);
-		//}
 		/// Send it to IpcomProtocol
-		IpcomProtocolSendMessageFull(IpcomProtocolGetInstance(), connection, mesg, _RecvedCallback, NULL, _OnOpCtxDestroy, &gerror);
+		IpcomProtocolSendMessageFull(IpcomProtocolGetInstance(), connection, mesg, _RecvedCallback, _OnOpCtxDestroy, NULL, &gerror);
 		if (gerror) {
 			DWARN("%s\n", gerror->message);
 			g_error_free(gerror);
@@ -103,6 +100,7 @@ SendingThread(gpointer data)
 		IpcomMessageUnref(mesg);
 
 		g_usleep(1000000);
+		count++;
 	}
 	return NULL;
 }
@@ -111,8 +109,7 @@ gint main()
 {
 	GMainContext *context;
 	GMainLoop	*main_loop;
-	GThread		*pSendingThread;
-	guint		count;
+	//GThread		*pSendingThread;
 
 	IpcomService *service;
 
@@ -138,7 +135,8 @@ gint main()
 	connection = IpcomTransportConnect(transport, "127.0.0.1", 50001, "127.0.0.1", 50000);
 
 	//start thread for sending messages
-	pSendingThread = g_thread_new("Sending Thread", &SendingThread, NULL);
+	//pSendingThread = g_thread_new("Sending Thread", &SendingThread, NULL);
+	g_thread_new("Sending Thread", &SendingThread, NULL);
 	g_main_loop_run (main_loop);
 
 	return 0;

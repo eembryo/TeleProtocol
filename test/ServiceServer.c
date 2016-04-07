@@ -20,30 +20,53 @@
 
 #define CALLBACK_DATA_STRING	"HELLO~~"
 
+static gboolean MAKE_ERROR_RESPONSE = FALSE;
+
+
+IpcomMessage *GetRESPONSEFor(IpcomMessage *mesg)
+{
+	IpcomMessage	*newMsg;
+	gpointer		payload_buf;
+
+	newMsg = IpcomMessageNew(IPCOM_MESSAGE_MIN_SIZE);
+	IpcomMessageInitVCCPDUHeader(newMsg,
+			IPCOM_SERVICEID_TELEMATICS, IpcomMessageGetVCCPDUOperationID(mesg),
+			IpcomMessageGetVCCPDUSenderHandleID(mesg),
+			IPCOM_PROTOCOL_VERSION, IPCOM_OPTYPE_RESPONSE, 0, 0);
+
+	payload_buf = g_malloc0(16);
+
+	IpcomMessageSetPayloadBuffer(newMsg, payload_buf, 16);
+
+	return newMsg;
+}
+
 static IpcomServiceReturn
 _ProcessMessage(IpcomService *service, const IpcomOpContextId *ctxId, IpcomMessage *mesg)
 {
 	IpcomMessage 	*newMsg;
 	gpointer		payload_buf;
+	struct _ErrorPayload	*epayload;
 
 	DFUNCTION_START;
 
 	if (IpcomMessageGetVCCPDUOpType(mesg) == IPCOM_OPTYPE_REQUEST ||
 			IpcomMessageGetVCCPDUOpType(mesg) == IPCOM_OPTYPE_SETREQUEST) {
-		/// You can get service specific data
-		/// priv = IpcomServiceGetPrivData(service);
-		/// Generate a response message
-		newMsg = IpcomMessageNew(IPCOM_MESSAGE_MIN_SIZE);
-		IpcomMessageInitVCCPDUHeader(newMsg,
-				IPCOM_SERVICEID_TELEMATICS, IpcomMessageGetVCCPDUOperationID(mesg),
-				IpcomMessageGetVCCPDUSenderHandleID(mesg),
-				IPCOM_PROTOCOL_VERSION, IPCOM_OPTYPE_RESPONSE, 0, 0);
-		payload_buf = g_malloc0(16);
-		IpcomMessageSetPayloadBuffer(newMsg, payload_buf, 16);
 
-		/// Send the response message
-		IpcomProtocolRepondMessage(service->pProto, ctxId, newMsg);
-		IpcomMessageUnref(newMsg);
+		if (MAKE_ERROR_RESPONSE) {
+			IpcomProtocolRespondError(service->pProto, ctxId, IPCOM_ECODE_INVALID_LENGTH, 0);
+		}
+		else {
+			newMsg = GetRESPONSEFor(mesg);
+			/// Send the response message
+			IpcomProtocolRespondMessageFull(service->pProto, ctxId, newMsg, NULL, NULL);
+			IpcomMessageUnref(newMsg);
+		}
+	}
+
+	if (IpcomMessageGetVCCPDUOpType(mesg) == IPCOM_OPTYPE_SETREQUEST) {
+		if (MAKE_ERROR_RESPONSE) MAKE_ERROR_RESPONSE = FALSE;
+		else MAKE_ERROR_RESPONSE = TRUE;
 	}
 
 	return IPCOM_SERVICE_SUCCESS;

@@ -27,6 +27,8 @@ _IpcomMessageFree(struct ref *r)
 	IpcomMessage *pMsg = container_of(r, IpcomMessage, _ref);
 	r->count = -1;		//mark that this object is already freed.
 
+	DPRINT("Free IpcomMessage (SenderHandleID: 0x%x, OpType: 0x%x)\n", IpcomMessageGetVCCPDUSenderHandleID(pMsg), IpcomMessageGetVCCPDUOpType(pMsg));
+
 	if (pMsg->payload_ptr < (gpointer)pMsg || pMsg->payload_ptr > ((gpointer)pMsg->vccpdu_ptr + pMsg->actual_size)) {
 		g_free(pMsg->payload_ptr);
 	}

@@ -24,7 +24,7 @@
 #include <IpcomOperationContext.h>
 #include <IpcomEnums.h>
 #include <dprint.h>
-#include <math.h>
+#include <IpcomOpStateMachine.h>
 
 static IpcomProtocol *gIpcomProtocolInstance = NULL;
 
@@ -34,17 +34,15 @@ struct _IpcomProtocol {
 	GMainContext *pMainContext;
 };
 
-static gboolean _WFRTimerExpired(gpointer data);
-static gboolean _WFATimerExpired(gpointer data);
-static gint _GetWFRTimeout(gint nOfRetries);
-static gint _GetWFATimeout(gint nOfRetries);
+static gboolean _SendERRORFor(IpcomProtocol *, IpcomConnection *conn, IpcomMessage *target, guint8 ecode, guint16 einfo);
+static gboolean _SendACKFor(IpcomProtocol *, IpcomConnection *conn, IpcomMessage *target);
 
 #define IPCOM_PROTOCOL_ERROR IpcomProtocolErrorQuark()
 
 static GQuark
 IpcomProtocolErrorQuark(void)
 {
-  return g_quark_from_static_string ("ipcom-protocol-error-quark");
+	return g_quark_from_static_string ("ipcom-protocol-error-quark");
 }
 
 IpcomProtocol*
@@ -65,6 +63,8 @@ IpcomProtocolInit(GMainContext *gcontext)
 	gIpcomProtocolInstance->pServiceHash = g_hash_table_new(g_direct_hash, g_direct_equal);
 	gIpcomProtocolInstance->pOpContextHash = g_hash_table_new_full(IpcomOpContextIdHashFunc, IpcomOpContextIdEqual, NULL, NULL);
 
+	/// initialize operation state machine
+	IpcomOpStateMachineInit();
 	return gIpcomProtocolInstance;
 }
 
@@ -104,14 +104,26 @@ IpcomProtocolRegisterService(IpcomProtocol *proto, IpcomService *service)
 static gboolean
 _ValidateReceivedMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessage *mesg)
 {
-	/*
 	IpcomService *service = g_hash_table_lookup(proto->pServiceHash, GINT_TO_POINTER(g_ntohs(IpcomMessageGetVCCPDUHeader(mesg)->serviceID)));
 
+	/// Check protocol version
+
+	/// service is available?
 	if (!service) {
 		//send ERROR message
+		_SendERRORFor(proto, conn, mesg, IPCOM_ECODE_SERVICEID_NOT_AVAILABLE,IpcomMessageGetVCCPDUServiceID(mesg));
 		return FALSE;
 	}
-	 */
+
+	/// Length comparison is disabled because encoded message has different length from original message.
+#if 0
+	/// If real length of the message does not equal to one in VCC PDU Header
+	if (IpcomMessageGetVCCPDULength(mesg) + VCCPDUHEADER_LENGTH_CORRECTION != IpcomMessageGetLength(mesg)) {
+		_SendERRORFor(proto, conn, mesg, IPCOM_ECODE_INVALID_LENGTH, 0);
+		return FALSE;
+	}
+#endif
+
 	return TRUE;
 }
 
@@ -163,6 +175,7 @@ _SendERRORMessage(IpcomProtocol *proto, IpcomConnection *conn,
 static gboolean
 _SendERRORFor(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessage *target, guint8 ecode, guint16 einfo)
 {
+	g_assert(proto && conn && target);
 	return _SendERRORMessage(proto, conn,
 			g_htons(target->vccpdu_ptr->serviceID), g_htons(target->vccpdu_ptr->operationID),
 			g_htonl(target->vccpdu_ptr->senderHandleId), target->vccpdu_ptr->proto_version,
@@ -213,9 +226,17 @@ _IpcomProtocolHandleNOTIFICATION_CYCLIC(IpcomProtocol *proto, gpointer data, Ipc
 	return 0;
 }
 
+IpcomService*
+IpcomProtocolLookupService(IpcomProtocol *proto, guint serviceId)
+{
+	return g_hash_table_lookup(proto->pServiceHash, GINT_TO_POINTER(serviceId));
+}
+
 static gint
 _IpcomProtocolHandleREQUEST(IpcomProtocol *proto, IpcomOpContext *opContext, IpcomMessage *mesg)
 {
+	gint err;
+
 	DFUNCTION_START;
 
 	IpcomService *service;
@@ -227,40 +248,36 @@ _IpcomProtocolHandleREQUEST(IpcomProtocol *proto, IpcomOpContext *opContext, Ipc
 	service = g_hash_table_lookup(proto->pServiceHash, GINT_TO_POINTER(IpcomMessageGetVCCPDUServiceID(mesg)));
 	g_assert(service);
 
-	if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_REQUEST) < 0) {
+	if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_REQUEST, GINT_TO_POINTER(0)) < 0) {
 		goto HandleREQUEST_failed;
 	}
-	service->ProcessMessage(service, IpcomOpContextGetContextId(opContext), mesg);
-	IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_PROCESS_DONE);
+	IpcomOpContextSetMessage(opContext, mesg);
+	err = service->ProcessMessage(service, IpcomOpContextGetContextId(opContext), mesg);
+	if (err) {
+		//!! NEED IMPLEMENTATION
+	}
+	IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_PROCESS_DONE, GINT_TO_POINTER(0));
 	return 0;
 
 	HandleREQUEST_failed:
-	IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_FINALIZE);
+	//IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_UNKNOWN_FAILURE));
 	return -1;
 }
 
 static gint
 _IpcomProtocolHandleRESPONSE(IpcomProtocol *proto, IpcomOpContext *opContext, IpcomMessage *mesg)
 {
-	gboolean status;
-	IpcomServiceReturn ret;
-	GSource *timer;
-	gint nextStatus;
-
 	DFUNCTION_START;
 
 	_SendACKFor(proto, IpcomOpContextGetConnection(opContext), mesg);
 
-	nextStatus = IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_RESPONSE);
-	if (nextStatus < 0) {
+	if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_RESPONSE, GINT_TO_POINTER(0)) < 0) {
 		DWARN("failed to trigger OPCONTEXT_TRIGGER_RECV_RESPONSE.\n");
 		goto HandleRESPONSE_failed;
 	}
-	//1. stop WFA/WFR timer if exists
-	IpcomOpContextCancelTimer(opContext);
-	//2. call callback function
+	/// call callback function
 	IpcomOpContextGetRecvCallback(opContext)(IpcomOpContextGetContextId(opContext), mesg, IpcomOpContextGetRecvCallbackData(opContext));
-	IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_PROCESS_DONE);
+	IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_PROCESS_DONE, GINT_TO_POINTER(0));
 
 	return 0;
 
@@ -274,38 +291,8 @@ _IpcomProtocolHandleACK(IpcomProtocol *proto, IpcomOpContext *opContext, IpcomMe
 
 	DFUNCTION_START;
 
-	switch(IpcomOpContextGetStatus(opContext)) {
-	case OPCONTEXT_STATUS_REQUEST_SENT:
-		/// 1. trigger OpContext
-		if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_ACK) < 0) {
-			goto HandleACK_failed;
-		}
-		///2. stop WFA timer
-		IpcomOpContextCancelTimer(opContext);
-		///3. start WFR timer
-		IpcomOpContextSetTimer(opContext, _GetWFRTimeout(opContext->numberOfRetries), _WFRTimerExpired);
-		break;
-	case OPCONTEXT_STATUS_RESPONSE_SENT:
-		/// 1. trigger OpContext
-		if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_ACK) < 0) {
-			goto HandleACK_failed;
-		}
-		/// 2. stop WFR timer
-		IpcomOpContextCancelTimer(opContext);
-		break;
-	case OPCONTEXT_STATUS_NOTIFICATION_SENT:
-		/// 1. trigger OpContext
-		if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_ACK) < 0) {
-			goto HandleACK_failed;
-		}
-		///2. stop WFA timer
-		IpcomOpContextCancelTimer(opContext);
-		break;
-	default:
-		DWARN("We got an wrong ACK message at operation status (%d). Silently discard this message.\n", IpcomOpContextGetStatus(opContext));
+	if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_ACK, GINT_TO_POINTER(0)) < 0) {
 		goto HandleACK_failed;
-
-		break;
 	}
 	return 0;
 
@@ -313,21 +300,39 @@ _IpcomProtocolHandleACK(IpcomProtocol *proto, IpcomOpContext *opContext, IpcomMe
 	return -1;
 }
 
+static gint
+_IpcomProtocolHandleERROR(IpcomProtocol *proto, IpcomOpContext *opContext, IpcomMessage *mesg)
+{
+	IpcomReceiveMessageCallback cbfn;
+
+	DFUNCTION_START;
+
+	g_assert(opContext);
+
+	cbfn = IpcomOpContextGetRecvCallback(opContext);
+	if (cbfn)
+		cbfn(IpcomOpContextGetContextId(opContext), mesg, IpcomOpContextGetRecvCallbackData(opContext));
+
+	// IMPLEMENT: Trigger should be TRIGGER_ERROR
+	// IMPLEMENT: change FINCODE according to error message
+	IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_PEER_NOT_OK));
+
+	return 0;
+}
+
 IpcomOpContextId *
 IpcomProtocolSendMessageFull(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessage *mesg,
-		IpcomReceiveMessageCallback OnRecvMessage, gpointer userdata,
-		IpcomOpCtxDestroyNotify OnOpCtxDestroy,
+		IpcomReceiveMessageCallback OnRecvMessage, IpcomOpCtxDestroyNotify OnOpCtxDestroy,
+		gpointer userdata,
 		GError **error)
 {
-	IpcomOpContextId ctxId = {
+	IpcomOpContextId	ctxId = {
 			.connection = conn,
 			.senderHandleId = IpcomMessageGetVCCPDUSenderHandleID(mesg)
 	};
-	IpcomOpContext *ctx = NULL;
-	gint			nxtOpCtxStatus;
-	gint			ret;
-
-	DFUNCTION_START;
+	IpcomOpContext		*ctx = NULL;
+	IpcomOpContextId	*ret;
+	gint				trigger;
 
 	if (g_hash_table_contains(proto->pOpContextHash, &ctxId)) {
 		if (error) g_set_error(error, IPCOM_PROTOCOL_ERROR, 0, "Failed to send a message: Already registered context ID.");
@@ -338,70 +343,21 @@ IpcomProtocolSendMessageFull(IpcomProtocol *proto, IpcomConnection *conn, IpcomM
 	case IPCOM_OPTYPE_REQUEST:
 	case IPCOM_OPTYPE_SETREQUEST:
 	case IPCOM_OPTYPE_NOTIFICATION_REQUEST:
-		ctx = IpcomOpContextNewAndRegister(ctxId.connection, ctxId.senderHandleId, IpcomMessageGetVCCPDUOpType(mesg), OnRecvMessage, userdata);
-		if (!ctx)
-			goto _SendMessage_failed;
-
-		nxtOpCtxStatus = IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_SEND_REQUEST);
-		if (nxtOpCtxStatus == OPCONTEXT_TRIGGER_SEND_REQUEST) {
-			if (IpcomConnectionTransmitMessage(conn, mesg) < 0) {
-				if (error) g_set_error(error, IPCOM_PROTOCOL_ERROR, 1, "Failed to transmit in transport.");
-				goto _SendMessage_failed;
-			}
-			///start WFA timer
-			IpcomOpContextCancelTimer(ctx);
-			g_assert(IpcomOpContextSetTimer(ctx, _GetWFATimeout(ctx->numberOfRetries), _WFATimerExpired) >= 0);
-
-			///OpContext is created successfully, do rest things
-			IpcomOpContextSetMessage(ctx, mesg);
-		}
-		else
-			goto _SendMessage_failed;
-		break;
 	case IPCOM_OPTYPE_SETREQUEST_NORETURN:
-		ctx = IpcomOpContextNewAndRegister(ctxId.connection, ctxId.senderHandleId, IpcomMessageGetVCCPDUOpType(mesg), OnRecvMessage, userdata);
-		if (!ctx)
-			goto _SendMessage_failed;
-
-		nxtOpCtxStatus = IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_SEND_REQUEST);
-		if (nxtOpCtxStatus == OPCONTEXT_TRIGGER_SEND_REQUEST) {
-			if (IpcomConnectionTransmitMessage(conn, mesg) < 0) {
-				if (error) g_set_error(error, IPCOM_PROTOCOL_ERROR, 1, "Failed to transmit in transport.");
-				goto _SendMessage_failed;
-			}
-			///start WFA timer
-			IpcomOpContextCancelTimer(ctx);
-			g_assert(IpcomOpContextSetTimer(ctx, _GetWFATimeout(ctx->numberOfRetries), _WFATimerExpired));
-
-			///OpContext is created successfully, do rest things
-			IpcomOpContextSetMessage(ctx, mesg);
-		}
-		else
-			goto _SendMessage_failed;
-		break;
 	case IPCOM_OPTYPE_NOTIFICATION:
-		ctx = IpcomOpContextNewAndRegister(ctxId.connection, ctxId.senderHandleId, IpcomMessageGetVCCPDUOpType(mesg), NULL, NULL);
-		if (!ctx)
+		trigger = IpcomMessageGetVCCPDUOpType(mesg) == IPCOM_OPTYPE_NOTIFICATION ? OPCONTEXT_TRIGGER_SEND_NOTIFICATION : OPCONTEXT_TRIGGER_SEND_REQUEST;
+
+		ctx = IpcomOpContextNewAndRegister(ctxId.connection, ctxId.senderHandleId,
+				IpcomMessageGetVCCPDUServiceID(mesg), IpcomMessageGetVCCPDUOperationID(mesg), IpcomMessageGetVCCPDUProtoVersion(mesg), IpcomMessageGetVCCPDUOpType(mesg));
+		if (!ctx) goto _SendMessage_failed;
+
+		if (IpcomOpContextTrigger(ctx, trigger, mesg) < 0) {
+			if (error) g_set_error(error, IPCOM_PROTOCOL_ERROR, 1, "Failed to Transmit.");
 			goto _SendMessage_failed;
-
-		nxtOpCtxStatus = IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_SEND_NOTIFICATION);
-		if (nxtOpCtxStatus == OPCONTEXT_STATUS_NOTIFICATION_SENT) {
-			if (IpcomConnectionTransmitMessage(conn, mesg) < 0) {
-				if (error) g_set_error(error, IPCOM_PROTOCOL_ERROR, 1, "Failed to transmit in transport.");
-				goto _SendMessage_failed;
-			}
-			///start WFA timer
-			IpcomOpContextCancelTimer(ctx);
-			g_assert(IpcomOpContextSetTimer(ctx, _GetWFATimeout(ctx->numberOfRetries), _WFATimerExpired));
-
-			///OpContext is created successfully, do rest things
-			IpcomOpContextSetMessage(ctx, mesg);
 		}
-		else
-			goto _SendMessage_failed;
 		break;
 	case IPCOM_OPTYPE_NOTIFICATION_CYCLIC:
-		if (IpcomConnectionTransmitMessage(conn, mesg)) {
+		if (IpcomConnectionTransmitMessage(conn, mesg) < 0) {
 			if (error) g_set_error(error, IPCOM_PROTOCOL_ERROR, 1, "Failed to transmit in transport.");
 			goto _SendMessage_failed;
 		}
@@ -411,14 +367,14 @@ IpcomProtocolSendMessageFull(IpcomProtocol *proto, IpcomConnection *conn, IpcomM
 		g_assert(FALSE);
 	}
 
-	if (ctx && OnOpCtxDestroy)
-		IpcomOpContextSetOnDestroy(ctx, OnOpCtxDestroy);
-
-	_SendMessage_success:
-	ret = IpcomOpContextGetStatus(ctx);
-	IpcomOpContextUnref(ctx);
-	/// if OpContext is OPCONTEXT_STATUS_FINALIZE, IpcomOpContextUnref() frees ctx, and return NULL.
-	return ret == OPCONTEXT_STATUS_FINALIZE ? NULL : IpcomOpContextGetContextId(ctx);
+	//_SendMessage_success:
+	ret = NULL;
+	if (ctx && IpcomOpContextGetState(ctx) != OPCONTEXT_STATUS_FINALIZE) {
+		IpcomOpContextSetCallbacks(ctx, OnRecvMessage, OnOpCtxDestroy, userdata);
+		ret = IpcomOpContextGetContextId(ctx);
+	}
+	if (ctx) IpcomOpContextUnref(ctx);
+	return ret;
 
 	_SendMessage_failed:
 	if (ctx) IpcomOpContextUnref(ctx);
@@ -437,6 +393,14 @@ IpcomProtocolUnregisterOpContext(IpcomProtocol *proto, const IpcomOpContextId *o
 	return g_hash_table_remove(proto->pOpContextHash, opContextId);
 }
 
+void
+IpcomProtocolCancelOpContext(IpcomProtocol *proto, const IpcomOpContextId *pOpContextId)
+{
+	IpcomOpContext *ctx = IpcomProtocolLookupAndGetOpContext(proto, pOpContextId);
+	if (!ctx) return;
+	IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_CANCELLED));
+}
+
 IpcomOpContext *
 IpcomProtocolLookupAndGetOpContext(IpcomProtocol *proto, const IpcomOpContextId *opContextId)
 {
@@ -446,57 +410,42 @@ IpcomProtocolLookupAndGetOpContext(IpcomProtocol *proto, const IpcomOpContextId 
 }
 
 gint
-IpcomProtocolRespondMessageFull(IpcomProtocol *proto, const IpcomOpContextId *opContextId, IpcomMessage *mesg,
-		IpcomOpCtxDestroyNotify OnOpCtxDestroy)
+IpcomProtocolRespondError(IpcomProtocol *proto, const IpcomOpContextId *opContextId, guint8 ecode, guint16 einfo)
 {
 	IpcomOpContext *ctx;
-	gint			nxtOpCtxStatus;
-	gint			ret;
 
-	DFUNCTION_START;
-
-	if (!opContextId) {
-		DWARN("opContextId is NULL.\n");
-		return -1;
-	}
+	g_assert(opContextId);
 
 	ctx = IpcomProtocolLookupAndGetOpContext(proto, opContextId);
 	if (!ctx) g_error("Cannot find context ID: %p\n", opContextId);
 
-	//ctx status should be IPCOM_STATUS_PROCESS_REQUEST
-	if (IpcomOpContextGetStatus(ctx) != OPCONTEXT_STATUS_PROCESS_REQUEST) {
-		DWARN("OpContext status should be OPCONTEXT_STATUS_PROCESS_REQUEST(%d) to send a response message: But current status is %d\n", OPCONTEXT_STATUS_PROCESS_REQUEST, IpcomOpContextGetStatus(ctx));
-		return -1;
-	}
-	//mesg should be RESPONSE message
-	if (IpcomMessageGetVCCPDUOpType(mesg) != IPCOM_OPTYPE_RESPONSE)
-		g_error("This is not RESPONSE message:%d\n", IpcomMessageGetVCCPDUOpType(mesg));
+	/// We donot care whether error message is delivered successfully or not.
+	_SendERRORMessage(proto, IpcomOpContextGetConnection(ctx), IpcomOpContextGetServiceID(ctx), IpcomOpContextGetOperationID(ctx), IpcomOpContextGetSenderHandleID(ctx), IpcomOpContextGetProtoVersion(ctx), ecode, einfo);
+	IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_APP_ERROR));
 
-	if (OnOpCtxDestroy) IpcomOpContextSetOnDestroy(ctx, OnOpCtxDestroy);
-	IpcomOpContextSetMessage(ctx, mesg);
+	IpcomOpContextUnref(ctx);
+	return 0;
+}
 
-	//1. migrate status to OPCONTEXT_STATUS_RESPONSE_SENT
-	nxtOpCtxStatus = IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_SEND_RESPONSE);
-	if (nxtOpCtxStatus < 0)
+gint
+IpcomProtocolRespondMessageFull(IpcomProtocol *proto, const IpcomOpContextId *opContextId, IpcomMessage *mesg,
+		IpcomOpCtxDestroyNotify OnOpCtxDestroy, gpointer userdata)
+{
+	IpcomOpContext *ctx;
+	gint			ret;
+
+	DFUNCTION_START;
+
+	g_assert(opContextId);
+
+	ctx = IpcomProtocolLookupAndGetOpContext(proto, opContextId);
+	if (!ctx) g_error("Cannot find context ID: %p\n", opContextId);
+
+	if (IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_SEND_RESPONSE, mesg) < 0) {
 		goto _RespondMessageFull_failed;
-	//2. send RESPONSE message
-	if (IpcomConnectionTransmitMessage(IpcomOpContextGetConnection(ctx), mesg) < 0) {
-		IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_FINALIZE_TRANSMIT_FAILED);
-		goto _RespondMessageFull_failed;
 	}
-	if (nxtOpCtxStatus == OPCONTEXT_STATUS_RESPONSE_SENT) {
-		//3. start WFA timer
-		IpcomOpContextCancelTimer(ctx);
-		if (!IpcomOpContextSetTimer(ctx, _GetWFATimeout(ctx->numberOfRetries), _WFATimerExpired)) {
-			IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_FINALIZE_UNKNOWN_FAILED);
-			goto _RespondMessageFull_failed;
-		}
-	}
-	else if (nxtOpCtxStatus == OPCONTEXT_STATUS_FINALIZE) {
-		IpcomOpContextCancelTimer(ctx);
-	}
-	else
-		g_error("Tried to respond with wrong status.");
+
+	if (OnOpCtxDestroy) IpcomOpContextSetCallbacks(ctx, NULL, OnOpCtxDestroy, userdata);
 
 	ret = IpcomMessageGetPacketSize(mesg);
 	IpcomOpContextUnref(ctx);
@@ -504,14 +453,9 @@ IpcomProtocolRespondMessageFull(IpcomProtocol *proto, const IpcomOpContextId *op
 
 	_RespondMessageFull_failed:
 	/// send ERROR
+	/// NEED IMPLEMENTATION
 	if (ctx) IpcomOpContextUnref(ctx);
 	return 0;
-}
-
-gint
-IpcomProtocolRepondMessage(IpcomProtocol *proto, const IpcomOpContextId *opContextId, IpcomMessage *mesg)
-{
-	return IpcomProtocolRespondMessageFull(proto, opContextId, mesg, NULL);
 }
 
 gint
@@ -523,7 +467,8 @@ IpcomProtocolHandleMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMes
 			.senderHandleId = IpcomMessageGetVCCPDUSenderHandleID(mesg)
 	};
 
-	DFUNCTION_START;
+	//DFUNCTION_START;
+	DPRINT("Handle Message (SenderHandleID: %x)\n", IpcomMessageGetVCCPDUSenderHandleID(mesg));
 
 	if(!_ValidateReceivedMessage(proto, conn, mesg)) {
 		goto _HandleMessage_failed;
@@ -537,18 +482,20 @@ IpcomProtocolHandleMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMes
 	case IPCOM_OPTYPE_SETREQUEST:
 	case IPCOM_OPTYPE_NOTIFICATION_REQUEST:
 		if (!ctx) {
-			ctx = IpcomOpContextNewAndRegister(ctxId.connection, ctxId.senderHandleId, IpcomMessageGetVCCPDUOpType(mesg), NULL, NULL);
+			ctx = IpcomOpContextNewAndRegister(ctxId.connection, ctxId.senderHandleId,
+					IpcomMessageGetVCCPDUServiceID(mesg), IpcomMessageGetVCCPDUOperationID(mesg), IpcomMessageGetVCCPDUProtoVersion(mesg), IpcomMessageGetVCCPDUOpType(mesg));
 			if (!ctx) goto _HandleMessage_failed;
 		}
+		DPRINT("IpcomProtocol received one of REQUEST,SETREQUEST,SETREQUEST_NORETURN or NOTIFICATION_REQUEST message.\n");
 		_IpcomProtocolHandleREQUEST(proto, ctx, mesg);
 		break;
 	case IPCOM_OPTYPE_RESPONSE:
-		DPRINT("IpcomProtocol received RESPONSE message.\n");
 		if (!ctx) {
 			DWARN("We got wrong RESPONSE message. Sending Error.\n");
-			_SendERRORFor(proto, conn, mesg, 0,0);
+			_SendERRORFor(proto, conn, mesg, IPCOM_ECODE_OPERATIONTYPE_NOT_AVAILABLE, IPCOM_OPTYPE_RESPONSE);
 			goto _HandleMessage_failed;
 		}
+		DPRINT("IpcomProtocol received RESPONSE message.\n");
 		_IpcomProtocolHandleRESPONSE(proto, ctx, mesg);
 		break;
 	case IPCOM_OPTYPE_NOTIFICATION:
@@ -563,21 +510,19 @@ IpcomProtocolHandleMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMes
 		DPRINT("IpcomProtocol received ACK message.\n");
 		if (!ctx) {
 			DWARN("We got wrong ACK message. Sending error.\n");
-			_SendERRORFor(proto, conn, mesg, 0,0);
+			_SendERRORFor(proto, conn, mesg, IPCOM_ECODE_OPERATIONTYPE_NOT_AVAILABLE, IPCOM_OPTYPE_ACK);
 			goto _HandleMessage_failed;
 		}
 		_IpcomProtocolHandleACK(proto, ctx, mesg);
 		break;
 	case IPCOM_OPTYPE_ERROR:
+		if (ctx) _IpcomProtocolHandleERROR(proto, ctx, mesg);
 		break;
 	default:
 		break;
 	}
-
 	IpcomMessageUnref(mesg);
-
-	if (ctx)
-		IpcomOpContextUnref(ctx);
+	if (ctx) IpcomOpContextUnref(ctx);
 	return 0;
 
 _HandleMessage_failed:
@@ -585,99 +530,10 @@ _HandleMessage_failed:
 	return -1;
 }
 
-static gint
-_GetWFATimeout(gint nOfRetries)
-{
-	gint usedTimeoutWFA = 0;
-
-	if (nOfRetries > numberOfRetriesWFA) {
-		DWARN("The number of retries(%d) should be lower than maximum value(%d)\n.", nOfRetries, numberOfRetriesWFA);
-		return -1;
-	}
-
-	usedTimeoutWFA = defaultTimeoutWFA * powf(increaseTimerValueWFA,nOfRetries);
-
-	return usedTimeoutWFA;
-}
-
-static gint
-_GetWFRTimeout(gint nOfRetries)
-{
-	gint usedTimeoutWFR = 0;
-
-	if (nOfRetries > numberOfRetriesWFR) {
-		DWARN("The number of retries(%d) should be lower than maximum value(%d)\n.", nOfRetries, numberOfRetriesWFA);
-		return -1;
-	}
-
-	usedTimeoutWFR = defaultTimeoutWFR * powf(increaseTimerValueWFR,nOfRetries);
-
-	return usedTimeoutWFR;
-}
-
-static gboolean
-_WFATimerExpired(gpointer data)
-{
-	IpcomOpContext *ctx = (IpcomOpContext *)data;
-	gint usedTimeoutWFA;
-
-	DFUNCTION_START;
-
-	IpcomOpContextRef(ctx);
-	///check whether retransmission is needed or not
-	ctx->numberOfRetries++;
-	if (ctx->numberOfRetries > numberOfRetriesWFA) {
-		/// We give up to transmit this message.
-		DWARN("Give up to transmit. Destroying this operation (%p).\n", IpcomOpContextGetContextId(ctx));
-		//IpcomOpContextUnsetTimer(ctx);
-		IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_FINALIZE_WFA_EXPIRED);
-		IpcomOpContextUnref(ctx);
-		return G_SOURCE_REMOVE;
-	}
-	///retransmit IpcomMessage
-	g_assert(ctx->message);
-	IpcomConnectionTransmitMessage(IpcomOpContextGetConnection(ctx), ctx->message);
-	///Reset timer
-	usedTimeoutWFA = _GetWFATimeout(ctx->numberOfRetries);	g_assert(usedTimeoutWFA > 0);
-	IpcomOpContextSetTimer(ctx, usedTimeoutWFA, _WFATimerExpired);
-
-	IpcomOpContextUnref(ctx);
-	return G_SOURCE_REMOVE;
-}
-
-static gboolean
-_WFRTimerExpired(gpointer data)
-{
-	IpcomOpContext *ctx = (IpcomOpContext *)data;
-	gint usedTimeoutWFR;
-
-	DFUNCTION_START;
-
-	IpcomOpContextRef(ctx);
-	///check whether retransmission is needed or not
-	ctx->numberOfRetries++;
-	if (ctx->numberOfRetries > numberOfRetriesWFR) {
-		/// We give up to transmit this message.
-		DWARN("Give up to transmit. Destroying this operation.\n");
-		IpcomOpContextUnsetTimer(ctx);
-		IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_FINALIZE_WFR_EXPIRED);
-		IpcomOpContextUnref(ctx);
-		return G_SOURCE_REMOVE;
-	}
-	///retransmit IpcomMessage
-	g_assert(ctx->message);
-	IpcomConnectionTransmitMessage(IpcomOpContextGetConnection(ctx), ctx->message);
-	///Reset timer
-	usedTimeoutWFR = _GetWFRTimeout(ctx->numberOfRetries);	g_assert(usedTimeoutWFR > 0);
-	IpcomOpContextSetTimer(ctx, usedTimeoutWFR, _WFRTimerExpired);
-
-	IpcomOpContextUnref(ctx);
-	return G_SOURCE_REMOVE;
-}
-
 /**
  * deprecated functions
  */
+#if 0
 gint
 IpcomProtocolSendMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessage *mesg,
 		IpcomReceiveMessageCallback recv_cb, gpointer userdata)
@@ -687,3 +543,10 @@ IpcomProtocolSendMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessa
 	ctxid = IpcomProtocolSendMessageFull(proto, conn, mesg, recv_cb, userdata, NULL, NULL);
 	return ctxid ? 0 : -1;
 }
+
+gint
+IpcomProtocolRepondMessage(IpcomProtocol *proto, const IpcomOpContextId *opContextId, IpcomMessage *mesg)
+{
+	return IpcomProtocolRespondMessageFull(proto, opContextId, mesg, NULL, NULL);
+}
+#endif

@@ -68,6 +68,8 @@ typedef IpcomServiceReturn		(*IpcomServiceProcessNoti)(IpcomService *service, Ip
  */
 typedef void					(*IpcomOpCtxDestroyNotify)(IpcomOpContextId *opContextId, gint code, gpointer userdata);
 
+/* IpcomOpStateMachine.h */
+
 G_END_DECLS
 
 #endif

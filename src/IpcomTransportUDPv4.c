@@ -64,6 +64,7 @@ _UDPv4Receive(IpcomTransport *transport, GSocket *socket)
 		g_error_free(gerror);
 		return FALSE;
 	}
+	IpcomMessageSetLength(newMesg, length);
 
 	conn = (IpcomConnection *)g_hash_table_lookup(udpTransport->connHash, sockaddr);
 	if (!conn && transport->onNewConn) { //try to accept new connection
@@ -96,7 +97,6 @@ static gboolean
 _UDPv4CheckSocket(GSocket *socket, GIOCondition cond, gpointer data)
 {
 	IpcomTransportUDPv4 *udpTransport = (IpcomTransportUDPv4 *)data;
-	GError				*gerror=NULL;
 
 	DFUNCTION_START;
 

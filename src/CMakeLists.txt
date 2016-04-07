@@ -6,6 +6,7 @@ set(SRCS
    ./IpcomService.c
    ./IpcomTransportUDPv4.c
    ./IpcomOperationContext.c
+   ./IpcomOpStateMachine.c
    ./IpcomEnums.c)
 
 add_library(${IPCOMM_LIB} SHARED ${SRCS})
