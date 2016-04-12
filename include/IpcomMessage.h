@@ -59,7 +59,8 @@ struct _IpcomMessage {
 
 // if size equals to zero, maximum message size is allocated.
 IpcomMessage *IpcomMessageNew(guint16 maxSize);
-
+static inline gchar*		IpcomMessageGetRawData(IpcomMessage *mesg)
+{ return mesg->message; }
 static inline VCCPDUHeader *IpcomMessageGetVCCPDUHeader(IpcomMessage *mesg)
 { return mesg->vccpdu_ptr; }
 static inline guint16	IpcomMessageGetVCCPDUServiceID(IpcomMessage *mesg)

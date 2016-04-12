@@ -111,7 +111,7 @@ _ValidateReceivedMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessa
 	/// service is available?
 	if (!service) {
 		//send ERROR message
-		_SendERRORFor(proto, conn, mesg, IPCOM_ECODE_SERVICEID_NOT_AVAILABLE,IpcomMessageGetVCCPDUServiceID(mesg));
+		_SendERRORFor(proto, conn, mesg, IPCOM_MESSAGE_ECODE_SERVICEID_NOT_AVAILABLE,IpcomMessageGetVCCPDUServiceID(mesg));
 		return FALSE;
 	}
 
@@ -492,7 +492,7 @@ IpcomProtocolHandleMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMes
 	case IPCOM_OPTYPE_RESPONSE:
 		if (!ctx) {
 			DWARN("We got wrong RESPONSE message. Sending Error.\n");
-			_SendERRORFor(proto, conn, mesg, IPCOM_ECODE_OPERATIONTYPE_NOT_AVAILABLE, IPCOM_OPTYPE_RESPONSE);
+			_SendERRORFor(proto, conn, mesg, IPCOM_MESSAGE_ECODE_OPERATIONTYPE_NOT_AVAILABLE, IPCOM_OPTYPE_RESPONSE);
 			goto _HandleMessage_failed;
 		}
 		DPRINT("IpcomProtocol received RESPONSE message.\n");
@@ -510,7 +510,7 @@ IpcomProtocolHandleMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMes
 		DPRINT("IpcomProtocol received ACK message.\n");
 		if (!ctx) {
 			DWARN("We got wrong ACK message. Sending error.\n");
-			_SendERRORFor(proto, conn, mesg, IPCOM_ECODE_OPERATIONTYPE_NOT_AVAILABLE, IPCOM_OPTYPE_ACK);
+			_SendERRORFor(proto, conn, mesg, IPCOM_MESSAGE_ECODE_OPERATIONTYPE_NOT_AVAILABLE, IPCOM_OPTYPE_ACK);
 			goto _HandleMessage_failed;
 		}
 		_IpcomProtocolHandleACK(proto, ctx, mesg);

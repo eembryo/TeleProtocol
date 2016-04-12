@@ -24,7 +24,20 @@
 
 G_BEGIN_DECLS
 
+//typedef struct _IpcomConnectionFlow IpcomConnectionFlow;
+
+/*
+struct _IpcomConnectionFlow {
+	GInetAddress*	pLocalAddr;
+	guint16			nLocalPort;
+	GInetAddress*	pRemoteAddr;
+	guint16			nRemotePort;
+	guint			nProto;
+};
+*/
 struct _IpcomConnection {
+	struct _IpcomConnectionFlow	_flow;
+	guint16			proto;
 	GSocketAddress	*localSockAddr;
 	GSocketAddress	*remoteSockAddr;
 	IpcomProtocol	*protocol;
@@ -41,6 +54,24 @@ gint IpcomConnectionPushOutgoingMessage(IpcomConnection *, IpcomMessage *);
 gint IpcomConnectionPushIncomingMessage(IpcomConnection *, IpcomMessage *);
 gint IpcomConnectionTransmitMessage(IpcomConnection *, IpcomMessage *);
 
+static inline gboolean IpcomConnectionMatch(IpcomConnection* pConn, guint proto, GInetAddress *srcAddr, guint16 sport, GInetAddress *dstAddr, guint16 dport)
+{
+	return pConn->proto == proto &&
+			g_inet_address_equal(g_inet_socket_address_get_address(pConn->localSockAddr), srcAddr) && g_inet_socket_address_get_port(pConn->localSockAddr) == sport &&
+			g_inet_address_equal(g_inet_socket_address_get_address(pConn->remoteSockAddr), dstAddr) && g_inet_socket_address_get_port(pConn->remoteSockAddr) == dport ? TRUE : FALSE;
+}
+/*
+static inline gboolean IpcomConnectionFlowEqual(IpcomConnectionFlow* pConnFlow, guint proto, GInetAddress *srcAddr, guint16 sport, GInetAddress *dstAddr, guint16 dport)
+{
+	if (pConnFlow->nProto != proto) return FALSE;
+	else if (!g_inet_address_new_any(pConnFlow->pLocalAddr) && !g_inet_address_equal(pConnFlow->pLocalAddr, srcAddr)) return FALSE;
+	else if (pConnFlow->nLocalPort != sport) return FALSE;
+	else if (!g_inet_address_new_any(pConnFlow->pRemoteAddr) && !g_inet_address_equal(pConnFlow->pRemoteAddr, dstAddr)) return FALSE;
+	else if (pConnFlow->nRemotePort != dport) return FALSE;
+
+	return TRUE;
+}
+*/
 G_END_DECLS
 
 #endif

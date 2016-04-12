@@ -30,68 +30,20 @@
 #include <IpcomService.h>
 #include <SocketUtils.h>
 
+#include <netinet/ip.h>
+//#include <sys/socket.h>
+//#include <netinet/in.h>
+
 #define UDPV4TRANSPORT_FROM_TRANSPORT(ptr)	container_of(ptr, struct _IpcomTransportUDPv4, _transport)
 #define TRANSPORT_FROM_UDPv4TRANSPORT(ptr)	(struct _IpcomTransport *)(&ptr->_transport)
 
 struct _IpcomTransportUDPv4 {
 	IpcomTransport _transport;
-//	IpcomService	*service;
 	GSocketAddress	*boundSockAddr;
 	GHashTable		*connHash;
 	GMainContext	*mainContext;
 	GSource			*socketSource;
 };
-
-static gboolean
-_UDPv4Receive(IpcomTransport *transport, GSocket *socket)
-{
-	IpcomTransportUDPv4 *udpTransport = UDPV4TRANSPORT_FROM_TRANSPORT(transport);
-	GSocketAddress	*sockaddr;
-	GError			*gerror=NULL;
-	IpcomMessage	*newMesg = IpcomMessageNew(IPCOM_MESSAGE_MAX_SIZE);
-	gssize			length;
-	IpcomConnection *conn;
-
-	DFUNCTION_START;
-
-	newMesg = IpcomMessageNew(IPCOM_MESSAGE_MAX_SIZE);
-
-	//sockaddr gets source address of the received packet
-	length = g_socket_receive_from(socket, &sockaddr, newMesg->message, newMesg->actual_size, NULL, &gerror);
-	if (gerror) {
-		DERROR("%s", gerror->message);
-		IpcomMessageUnref(newMesg);
-		g_error_free(gerror);
-		return FALSE;
-	}
-	IpcomMessageSetLength(newMesg, length);
-
-	conn = (IpcomConnection *)g_hash_table_lookup(udpTransport->connHash, sockaddr);
-	if (!conn && transport->onNewConn) { //try to accept new connection
-		conn = IpcomConnectionNew(transport, NULL, sockaddr);
-		g_assert(conn);
-		if (!transport->onNewConn(conn, transport->onNewConn_data)) {
-			IpcomConnectionUnref(conn);
-			conn = NULL;
-		}
-		else {
-			DPRINT("Accept new connection.\n");
-			g_hash_table_insert(udpTransport->connHash, sockaddr, conn);
-		}
-	}
-	if (conn) {
-		DPRINT("Received data from known connection.\n");
-		IpcomConnectionPushIncomingMessage(conn, newMesg);
-	}
-	else {
-		DPRINT("Got new connection but denied it.\n");
-	}
-
-	IpcomMessageUnref(newMesg);
-	g_object_unref(sockaddr);
-
-	return TRUE;
-}
 
 static gboolean
 _UDPv4CheckSocket(GSocket *socket, GIOCondition cond, gpointer data)
@@ -316,8 +268,14 @@ IpcomTransportUDPv4New()
 
 	//initialize IpcomTransport structure
 	new->_transport = udpv4;
-	//IP_RECVORIGDSTADDR: socket option for get destination address of received UDP packet
 	new->_transport.socket = g_socket_new(G_SOCKET_FAMILY_IPV4, G_SOCKET_TYPE_DATAGRAM, G_SOCKET_PROTOCOL_DEFAULT, &gerror);
+	if (!new->_transport.socket) goto _UDPv4New_failed;
+	if (!g_socket_set_option(new->_transport.socket, IPPROTO_IP, IP_PKTINFO, 1, gerror)) {
+		DWARN("%s\n", gerror->message);
+		g_error_free(gerror);
+		goto _UDPv4New_failed;
+	}
+
 	new->_transport.protocol = IpcomProtocolGetInstance();
 
 	//initialize IpcomTransportUDPv4 structure
@@ -331,6 +289,9 @@ IpcomTransportUDPv4New()
 	if (gerror) g_error_free(gerror);
 
 	return &new->_transport;
+
+	_UDPv4New_failed:
+	return NULL;
 }
 
 void

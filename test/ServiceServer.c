@@ -54,7 +54,7 @@ _ProcessMessage(IpcomService *service, const IpcomOpContextId *ctxId, IpcomMessa
 			IpcomMessageGetVCCPDUOpType(mesg) == IPCOM_OPTYPE_SETREQUEST) {
 
 		if (MAKE_ERROR_RESPONSE) {
-			IpcomProtocolRespondError(service->pProto, ctxId, IPCOM_ECODE_INVALID_LENGTH, 0);
+			IpcomProtocolRespondError(service->pProto, ctxId, IPCOM_MESSAGE_ECODE_INVALID_LENGTH, 0);
 		}
 		else {
 			newMsg = GetRESPONSEFor(mesg);
