@@ -1,27 +1,85 @@
+#include <glib.h>
 #include <SocketUtils.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
-#include <net/if.h>
-#include <arpa/inet.h>
 #include <dprint.h>
 
-uint32_t
-GetIpv4AddressForNetInterface(int sockfd, const char *ifcname)
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+
+guint
+QuerySrcIpv4AddrForDst(const struct in_addr *target, struct in_addr *out)
 {
-	struct ifreq ifr;
-	uint32_t	ret;
+	int nl_sock;
+	struct sockaddr_nl me;
+	union {
+		struct nlmsghdr	nlh;
+		char 			data[256];
+	} nl_req, nl_resp = {0};
 
-	/* I want to get an IPv4 IP address */
-	ifr.ifr_addr.sa_family = AF_INET;
+	struct rtmsg*	p_rtm;
+	struct rtattr*	p_rta;
 
-	strncpy(ifr.ifr_name, ifcname, IFNAMSIZ-1);
+	if ((nl_sock = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_ROUTE)) < 0) {
+		perror("socket creation failed:");
+		goto _QuerySrcIpv4Addr_failed;
+	}
 
-	ioctl(sockfd, SIOCGIFADDR, &ifr);
+	nl_req.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtmsg));
+	nl_req.nlh.nlmsg_flags = NLM_F_REQUEST;
+	nl_req.nlh.nlmsg_type = RTM_GETROUTE;
 
-	ret = ((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr;
+	/* Set RTM message */
+	p_rtm = NLMSG_DATA(&nl_req.nlh);
+	p_rtm->rtm_family = AF_INET;
 
-	DPRINT("This address( %s ) is used for %s interface.\n", inet_ntoa(ret), ifcname);
+	/* Add RTA */
+	p_rta = RTM_RTA(p_rtm);
+	p_rta->rta_type = RTA_DST;
+	p_rta->rta_len = RTA_LENGTH(sizeof(struct in_addr));
+	memcpy(RTA_DATA(p_rta), target, sizeof(struct in_addr));
+	nl_req.nlh.nlmsg_len += p_rta->rta_len;
 
-	return ret;
+	/* Send the request message */
+	if (send(nl_sock, nl_req, nl_req.nlh.nlmsg_len, 0) < 0) {
+		perror("Write To Socket Failed...\n");
+		goto _QuerySrcIpv4Addr_failed;
+	}
+
+	/* Retrieve result */
+	{
+		int nll, rtml;
+		struct nlmsghdr*	p_nlh;
+
+		p_rtm = NULL;
+		p_rta = NULL;
+
+		/* Receive response */
+		nll = recv(nl_sock, nl_resp, sizeof(nl_resp), 0);
+		if (nll < 0) {
+			perror("Receive From Socket Failed:");
+			goto _QuerySrcIpv4Addr_failed;
+		}
+
+		for (p_nlh = (struct nlmsghdr *)&nl_resp.nlh; NLMSG_OK(p_nlh,nll); p_nlh = NLMSG_NEXT(p_nlh, nll)) {
+			p_rtm = (struct rtmsg *) NLMSG_DATA(p_nlh);
+			rtml = RTM_PAYLOAD(p_nlh);
+			for (p_rta = RTM_RTA(p_rtm); RTA_OK(p_rta, rtml); p_rta = RTA_NEXT(p_rta, rtml)) {
+				//DPRINT("rta_type = %d\n", p_rta->rta_type);
+				if (p_rta->rta_type == RTA_PREFSRC) {
+					memcpy(out, RTA_DATA(p_rta), sizeof(struct in_addr));
+				}
+			}
+		}
+	}
+	close(nl_sock);
+
+	return 0;
+
+	_QuerySrcIpv4Addr_failed:
+	if (nl_sock != -1) close(nl_sock);
+
+	return -1;
 }

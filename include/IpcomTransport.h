@@ -37,6 +37,7 @@ typedef gboolean			(*IpcomNewConnectionCb)				(IpcomConnection *, gpointer);
 struct _IpcomTransport {
 	GSocket			*socket;
 	IpcomProtocol	*protocol;
+	//GSocketAddress	*pBoundSockAddr;
 
 	IpcomTransportType		type;
 	_IpcomTransportTransmit	transmit;

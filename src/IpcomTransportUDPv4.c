@@ -41,6 +41,7 @@ struct _IpcomTransportUDPv4 {
 	IpcomTransport _transport;
 	GSocketAddress	*boundSockAddr;
 	GHashTable		*connHash;
+	GList			*pConnList;
 	GMainContext	*mainContext;
 	GSource			*socketSource;
 };
@@ -100,23 +101,45 @@ _UDPv4Bind(IpcomTransport *transport, const gchar *localIp, guint16 localPort)
 static IpcomConnection *
 _UDPv4Connect(IpcomTransport *transport, const gchar *remoteIp, guint16 remotePort)
 {
+	IpcomTransportUDPv4 *udpTransport = UDPV4TRANSPORT_FROM_TRANSPORT(transport);
 	IpcomConnection *pConn;
-	GSocketAddress *remoteSockAddr;
+	GSocketAddress*	pRemoteSockAddr = NULL;
+	GInetAddress*	pRemoteInetAddr = NULL;
+	GSocketAddress* pLocalSockAddr = NULL;
+	struct sockaddr_in	mLocalSockAddr;
 
 	DFUNCTION_START;
 
-	remoteSockAddr = g_inet_socket_address_new_from_string(remoteIp, remotePort);
-	g_assert(remoteSockAddr);
+	/* Make socket address for remote */
+	pRemoteSockAddr = g_inet_socket_address_new_from_string(remoteIp, remotePort);
+	g_assert(pRemoteSockAddr);
 
-	pConn = IpcomConnectionNew(transport, NULL, remoteSockAddr);
+	pRemoteInetAddr = g_inet_socket_address_get_address(pRemoteSockAddr);
+	g_assert(g_inet_address_get_family(pRemoteInetAddr) == G_SOCKET_FAMILY_IPV4);
+
+	/* Query source address to use for destination */
+	if (QuerySrcIpv4AddrForDst(pRemoteSockAddr, &mLocalSockAddr.sin_addr) == -1)
+		return NULL;
+	mLocalSockAddr.sin_family = AF_INET;
+	mLocalSockAddr.sin_port = g_inet_socket_address_get_port (udpTransport->boundSockAddr);
+
+	/* IMPLEMENT: make sure that mLocalSockAddr is involved in udpTransport->boundSockAddr
+	 * ...
+	 * */
+	pLocalSockAddr = g_socket_address_new_from_native((gpointer)&mLocalSockAddr, sizeof(struct sockaddr_in));
+
+	pConn = IpcomConnectionNew(transport, pLocalSockAddr, pRemoteSockAddr);
 	g_assert(pConn);
 	{
-		//add IpcomConnection to hash table of IpcomTransportUDPv4
-		IpcomTransportUDPv4 *udpTransport = UDPV4TRANSPORT_FROM_TRANSPORT(transport);
-		gpointer test = g_hash_table_lookup(udpTransport->connHash, remoteSockAddr);
-		g_assert(!test);	//IMPLEMENT: If test exists, try to remove connection.
-		g_hash_table_insert(udpTransport->connHash, remoteSockAddr, pConn);
+		if (g_hash_table_contains(udpTransport->connHash, pConn)) {
+			DWARN("Connection already exists.\n");
+			return NULL;
+		}
+		g_hash_table_insert(udpTransport->connHash, pConn, pConn);
 	}
+
+	if (pRemoteSockAddr) g_object_unref(pRemoteSockAddr);
+	if (pLocalSockAddr) g_object_unref(pLocalSockAddr);
 
 	return pConn;
 }
@@ -126,13 +149,25 @@ _UDPv4Transmit(IpcomTransport *transport, IpcomConnection *conn, IpcomMessage *m
 {
 	GError *gerror=NULL;
 	gssize sent_bytes;
-	GOutputVector msg_vector[2];
+	struct iovec	iov[2];
+	struct in_pktinfo	pktinfo;
+	struct sockaddr_in	mRemoteSockAddr;
+	struct sockaddr_in	mLocalSockAddr;
 
-	msg_vector[0].buffer = mesg->vccpdu_ptr;
-	msg_vector[0].size = VCCPDUHEADER_SIZE;
-	msg_vector[1].buffer = mesg->payload_ptr;
-	msg_vector[1].size = IpcomMessageGetPaylodLength(mesg);
+	union {
+		struct msghdr	msgh;
+		char			data[100];
+	} auxmsg;
 
+	g_socket_address_to_native ()
+	iov[0].iov_base = mesg->vccpdu_ptr;
+	iov[0].iov_len = VCCPDUHEADER_SIZE;
+	iov[1].iov_base = mesg->payload_ptr;
+	iov[1].iov_len = IpcomMessageGetPaylodLength(mesg);
+
+	auxmsg.msgh.msg_name = conn->remoteSockAddr
+
+	sendmsg
 	sent_bytes = g_socket_send_message(transport->socket, conn->remoteSockAddr, msg_vector, 2, NULL, 0, G_SOCKET_MSG_NONE, NULL, &gerror);
 	//sent_bytes = g_socket_send_to(transport->socket, conn->remoteSockAddr, IpcomMessageGetPaylodLength(mesg) + VCCPDUHEADER_SIZE, mesg->length, NULL, &gerror);
 
@@ -182,14 +217,15 @@ static IpcomTransport udpv4 = {
 		.lookup = _UDPv4LookupConnection,
 };
 
-//key is assumed to GSocketAddress
+//key is assumed to be IpcomConnection
 static guint
 _UDPv4ConnHashFunc(gconstpointer key)
 {
+	IpcomConnection *conn = (IpcomConnection *)key;
 	struct sockaddr_in skaddr;
 	GError *gerror = NULL;
 
-	g_socket_address_to_native((GSocketAddress *)key, &skaddr, sizeof(struct sockaddr_in), &gerror);
+	g_socket_address_to_native(conn->localSockAddr, &skaddr, sizeof(struct sockaddr_in), &gerror);
 	if (gerror) {
 		DERROR("%s\n", gerror->message);
 		g_assert(FALSE);
@@ -201,22 +237,7 @@ _UDPv4ConnHashFunc(gconstpointer key)
 static gboolean
 _UDPv4ConnEqual(gconstpointer a, gconstpointer b)
 {
-	struct sockaddr_in skaddr_a, skaddr_b;
-	GError *gerror = NULL;
-
-	g_socket_address_to_native((GSocketAddress *)a, &skaddr_a, sizeof(struct sockaddr_in), &gerror);
-	if (gerror) {
-		DERROR("%s\n", gerror->message);
-		g_assert(FALSE);
-	}
-
-	g_socket_address_to_native((GSocketAddress *)b, &skaddr_b, sizeof(struct sockaddr_in), &gerror);
-	if (gerror) {
-		DERROR("%s\n", gerror->message);
-		g_assert(FALSE);
-	}
-
-	return !memcmp(&skaddr_a, &skaddr_b, sizeof(struct sockaddr_in));
+	return IpcomConnectionEqual((IpcomConnection*)a, (IpcomConnection*)b);
 }
 
 gboolean

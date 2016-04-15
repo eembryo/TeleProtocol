@@ -62,10 +62,9 @@ IpcomConnectionNew(IpcomTransport *transport, GSocketAddress *localSockAddr, GSo
 	IpcomConnection *conn;
 
 	conn = g_malloc0(sizeof(IpcomConnection));
-	if (localSockAddr)
-		conn->localSockAddr = g_object_ref(localSockAddr);
 
-	g_assert(remoteSockAddr);
+	g_assert(localSockAddr && remoteSockAddr);
+	conn->localSockAddr = g_object_ref(localSockAddr);
 	conn->remoteSockAddr = g_object_ref(remoteSockAddr);
 	conn->protocol = IpcomProtocolGetInstance();
 	conn->transport = transport;

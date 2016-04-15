@@ -6,10 +6,8 @@
 #include <ref_count.h>
 #include <dprint.h>
 
-#define DECLARE_SM_ENTRY(fname) \
-	static int fname(IpcomOpState *pOpState, IpcomProtocolOpContextTriggers trigger, gpointer data)
-
-//typedef gint (*SMDoAction)(IpcomOpState *pOpState, IpcomProtocolOpContextTriggers trigger, gpointer data);
+#define DECLARE_SM_ENTRY(fn_name) \
+	static int fn_name(IpcomOpState *pOpState, IpcomProtocolOpContextTriggers trigger, gpointer data)
 
 struct _IpcomOpStateMachine SM_CLRO;	//Request Only / connectionless
 struct _IpcomOpStateMachine SM_CLRR;	//Request and Response / connectionless

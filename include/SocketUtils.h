@@ -21,7 +21,11 @@
 
 G_BEGIN_DECLS
 
-char *GetIpv4AddressForNetInterface(int sockfd, const char *ifcname);
+/* @QuerySrcIpv4AddrForDst
+ *
+ * RETURN VALUE: 0 on success, -1 on error
+ */
+guint QuerySrcIpv4AddrForDst(const struct in_addr *target, struct in_addr *out);
 
 G_END_DECLS
 #endif
