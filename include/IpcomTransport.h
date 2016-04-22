@@ -26,28 +26,29 @@
 G_BEGIN_DECLS
 
 typedef gint 				(*_IpcomTransportTransmit)			(IpcomTransport *, IpcomConnection *, IpcomMessage*);
+typedef IpcomConnection*	(*_IpcomTransportGetBroadConnection)(IpcomTransport *);
 typedef gboolean 			(*_IpcomTransportBind)				(IpcomTransport *, const gchar *ip, guint16 port);
 typedef gboolean 			(*_IpcomTransportAddConnection)		(IpcomTransport *, IpcomConnection *, gpointer data);
 typedef gboolean 			(*_IpcomTransportOnReadyToReceive)	(IpcomTransport *, GSocket *);
 typedef IpcomConnection*	(*_IpcomTransportConnect)			(IpcomTransport *, const gchar *ip, guint16 port);
-typedef gboolean			(*_IpcomTransportListen)				(IpcomTransport *, gint backlog);
-typedef IpcomConnection*	(*_IpcomTransportLookup)				(IpcomTransport *, const gchar *localIpAddr, guint16 localPort, const gchar *remoteIpAddr, guint16 remotePort);
+typedef gboolean			(*_IpcomTransportListen)			(IpcomTransport *, gint backlog);
+typedef IpcomConnection*	(*_IpcomTransportLookup)			(IpcomTransport *, const gchar *localIpAddr, guint16 localPort, const gchar *remoteIpAddr, guint16 remotePort);
 typedef gboolean			(*IpcomNewConnectionCb)				(IpcomConnection *, gpointer);
 
 struct _IpcomTransport {
 	GSocket			*socket;
 	IpcomProtocol	*protocol;
-	//GSocketAddress	*pBoundSockAddr;
 
-	IpcomTransportType		type;
-	_IpcomTransportTransmit	transmit;
-	_IpcomTransportConnect	connect;
-	_IpcomTransportBind		bind;
-	_IpcomTransportListen	listen;
-	_IpcomTransportLookup	lookup;
+	IpcomTransportType			type;
+	_IpcomTransportConnect		connect;
+	_IpcomTransportBind			bind;
+	_IpcomTransportTransmit		transmit;
+	_IpcomTransportListen		listen;
+	_IpcomTransportLookup		lookup;
+	_IpcomTransportGetBroadConnection	getBroadConnection;
 	_IpcomTransportOnReadyToReceive	onReadyToReceive;
-	IpcomNewConnectionCb	onNewConn;
-	gpointer				onNewConn_data;
+	IpcomNewConnectionCb		onNewConn;
+	gpointer					onNewConn_data;
 	//addConnection()
 };
 

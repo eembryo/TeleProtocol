@@ -22,6 +22,23 @@
 
 static gboolean MAKE_ERROR_RESPONSE = FALSE;
 
+IpcomMessage *GenDummyMessage(IpcomServiceId serviceid, guint opid, IpcomOpType optype, guint seqnum)
+{
+	IpcomMessage	*newMsg;
+	gpointer		payload_buf;
+
+	newMsg = IpcomMessageNew(IPCOM_MESSAGE_MIN_SIZE);
+	IpcomMessageInitVCCPDUHeader(newMsg,
+			serviceid, opid,
+			BUILD_SENDERHANDLEID(serviceid, opid, optype, seqnum),
+			IPCOM_PROTOCOL_VERSION, optype, 0, 0);
+
+	payload_buf = g_malloc0(16);
+
+	IpcomMessageSetPayloadBuffer(newMsg, payload_buf, 16);
+
+	return newMsg;
+}
 
 IpcomMessage *GetRESPONSEFor(IpcomMessage *mesg)
 {
@@ -113,8 +130,14 @@ main() {
 	transport->onNewConn_data = NULL;
 
 	///[Transport] Start to listen on specific IP address and port
-	IpcomTransportListen(transport, "127.0.0.1", 50000, _OnNewConnection, NULL);
+	IpcomTransportListen(transport, "192.168.0.4", 50000, _OnNewConnection, NULL);
 
+	{
+		IpcomConnection* pBroadConn = transport->getBroadConnection(transport);
+		IpcomMessage* newmsg = GenDummyMessage(IPCOM_SERVICEID_TELEMATICS, 0x0104, IPCOM_OPTYPE_NOTIFICATION_CYCLIC, 0x01);
+		IpcomConnectionSetBroadConnectionPort(pBroadConn, 50001);
+		IpcomProtocolSendMessageFull(IpcomProtocolGetInstance(), pBroadConn, newmsg, NULL, NULL, NULL, NULL);
+	}
 	g_main_loop_run(main_loop);
 	///gmainloop run {
 	/*

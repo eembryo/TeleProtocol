@@ -18,12 +18,14 @@
 #define _SocketUtils_H_
 
 #include <glib.h>
+#include <netinet/ip.h>
 
 G_BEGIN_DECLS
 
 /* @QuerySrcIpv4AddrForDst
+ * target: target IPv4 address, which is network-byte ordered address.
  *
- * RETURN VALUE: 0 on success, -1 on error
+ * RETURN VALUE: return 0 and *out has network-byte ordered IPv4 address on success, -1 on error.
  */
 guint QuerySrcIpv4AddrForDst(const struct in_addr *target, struct in_addr *out);
 

@@ -30,21 +30,124 @@
 #include <IpcomService.h>
 #include <SocketUtils.h>
 
+#include <IpcomNetifcMonitor.h>
+
 #include <netinet/ip.h>
-//#include <sys/socket.h>
-//#include <netinet/in.h>
+#include <errno.h>
 
 #define UDPV4TRANSPORT_FROM_TRANSPORT(ptr)	container_of(ptr, struct _IpcomTransportUDPv4, _transport)
 #define TRANSPORT_FROM_UDPv4TRANSPORT(ptr)	(struct _IpcomTransport *)(&ptr->_transport)
+#define MAX_CMSG_SIZE 256
+
+#define IPV4_ANYCAST_ADDRESS gen_anycast_address()
+GInetAddress* gen_anycast_address() {
+	static GInetAddress* anycast_addr = NULL;
+	if (!anycast_addr) anycast_addr = g_inet_address_new_any(G_SOCKET_FAMILY_IPV4);
+	return anycast_addr;
+}
 
 struct _IpcomTransportUDPv4 {
-	IpcomTransport _transport;
-	GSocketAddress	*boundSockAddr;
-	GHashTable		*connHash;
-	GList			*pConnList;
-	GMainContext	*mainContext;
-	GSource			*socketSource;
+	IpcomTransport	_transport;
+	GSocketAddress*	boundSockAddr;
+	GHashTable*		connHash;
+	GMainContext*	mainContext;
+	GSource*		socketSource;
+	IpcomConnection*	pBroadConn;		//dummy connection, which means broadcasting
 };
+
+static gboolean
+_UDPv4Receive(IpcomTransport *transport, GSocket *socket)
+{
+	IpcomTransportUDPv4* udpTransport = UDPV4TRANSPORT_FROM_TRANSPORT(transport);
+	GSocketAddress*		pRemoteSockAddr;
+	GSocketAddress*		pLocalSockAddr;
+	IpcomMessage*		newMesg;
+	gssize				length;
+	IpcomConnectionFlow	flow;
+	IpcomConnection*	pConn;
+
+	struct msghdr		msgh = {0};
+	struct iovec		iov[1];
+	guint8				cmsg_buf[MAX_CMSG_SIZE] = {0};
+	struct cmsghdr*		pcmsgh;
+	struct sockaddr_in	mRemoteSockAddr;
+	struct sockaddr_in	mLocalSockAddr;
+	struct in_pktinfo*	ppktinfo;
+
+	DFUNCTION_START;
+
+	newMesg = IpcomMessageNew(IPCOM_MESSAGE_MAX_SIZE);
+
+	iov[0].iov_base = IpcomMessageGetRawData(newMesg);
+	iov[0].iov_len = IPCOM_MESSAGE_MAX_SIZE;
+
+	msgh.msg_name = (void *)&mRemoteSockAddr;
+	msgh.msg_namelen = sizeof(struct sockaddr_in);
+	msgh.msg_iov = iov;
+	msgh.msg_iovlen = 1;
+	msgh.msg_control = cmsg_buf;
+	msgh.msg_controllen = sizeof(cmsg_buf);
+	msgh.msg_flags = 0;
+
+	/* Receive a message with auxiliary data */
+	length = recvmsg (g_socket_get_fd(transport->socket), &msgh, 0);
+	if (length == -1) {
+		DERROR("%s", strerror(errno));
+		IpcomMessageUnref(newMesg);
+		return FALSE;
+	}
+
+	IpcomMessageSetLength(newMesg, length);
+
+	/* Receive auxiliary data in msgh */
+	for (pcmsgh = CMSG_FIRSTHDR(&msgh); pcmsgh != NULL; pcmsgh = CMSG_NXTHDR(&msgh, pcmsgh)) {
+		DPRINT("cmsg level and type = %d, %d\n", pcmsgh->cmsg_level, pcmsgh->cmsg_type);
+		if (pcmsgh->cmsg_level == IPPROTO_IP && pcmsgh->cmsg_type == IP_PKTINFO && pcmsgh->cmsg_len) {
+			ppktinfo = (struct in_pktinfo *)CMSG_DATA(pcmsgh);
+			mLocalSockAddr.sin_family = AF_INET;
+			mLocalSockAddr.sin_port = g_htons(g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(udpTransport->boundSockAddr)));
+			memcpy(&mLocalSockAddr.sin_addr, &ppktinfo->ipi_addr, sizeof(struct in_addr));
+			//break;
+		}
+	}
+
+	/* Set temporary connection information */
+	pRemoteSockAddr = g_socket_address_new_from_native((gpointer)&mRemoteSockAddr, sizeof(struct sockaddr_in));
+	pLocalSockAddr = g_socket_address_new_from_native((gpointer)&mLocalSockAddr, sizeof(struct sockaddr_in));
+	flow.pLocalSockAddr = pLocalSockAddr;
+	flow.pRemoteSockAddr = pRemoteSockAddr;
+	flow.nProto = IPCOM_TRANSPORT_UDPV4;
+
+	/* Lookup connection in hash table. key value is IpcomConnectionFlow* */
+	pConn = (IpcomConnection *)g_hash_table_lookup(udpTransport->connHash, &flow);
+
+	if (!pConn && transport->onNewConn) {
+		pConn = IpcomConnectionNew(transport, IPCOM_TRANSPORT_UDPV4, pLocalSockAddr, pRemoteSockAddr);
+		g_assert(pConn);
+		if (!transport->onNewConn(pConn, transport->onNewConn_data)) {
+			IpcomConnectionUnref(pConn);
+			pConn = NULL;
+		}
+		else {
+			DPRINT("Accept new connection.\n");
+			g_hash_table_insert(udpTransport->connHash, IpcomConnectionGetFlow(pConn), pConn);
+		}
+	}
+
+	if (pConn) {
+		DPRINT("Got a packet from valid peer.\n");
+		IpcomConnectionPushIncomingMessage(pConn, newMesg);
+	}
+	else {
+		DPRINT("Deny the packet from this connection.\n");
+	}
+
+	IpcomMessageUnref(newMesg);
+	g_object_unref(pRemoteSockAddr);
+	g_object_unref(pLocalSockAddr);
+
+	return TRUE;
+}
 
 static gboolean
 _UDPv4CheckSocket(GSocket *socket, GIOCondition cond, gpointer data)
@@ -94,19 +197,18 @@ _UDPv4Bind(IpcomTransport *transport, const gchar *localIp, guint16 localPort)
 	}
 
 	udpTransport->boundSockAddr = sockaddr;
-
 	return TRUE;
 }
 
 static IpcomConnection *
 _UDPv4Connect(IpcomTransport *transport, const gchar *remoteIp, guint16 remotePort)
 {
-	IpcomTransportUDPv4 *udpTransport = UDPV4TRANSPORT_FROM_TRANSPORT(transport);
-	IpcomConnection *pConn;
-	GSocketAddress*	pRemoteSockAddr = NULL;
-	GInetAddress*	pRemoteInetAddr = NULL;
-	GSocketAddress* pLocalSockAddr = NULL;
-	struct sockaddr_in	mLocalSockAddr;
+	IpcomTransportUDPv4*	udpTransport = UDPV4TRANSPORT_FROM_TRANSPORT(transport);
+	IpcomConnection*		pConn;
+	GSocketAddress*			pRemoteSockAddr = NULL;
+	GSocketAddress* 		pLocalSockAddr = NULL;
+	IpcomConnectionFlow		flow;
+	GError*					gerror = NULL;
 
 	DFUNCTION_START;
 
@@ -114,28 +216,43 @@ _UDPv4Connect(IpcomTransport *transport, const gchar *remoteIp, guint16 remotePo
 	pRemoteSockAddr = g_inet_socket_address_new_from_string(remoteIp, remotePort);
 	g_assert(pRemoteSockAddr);
 
-	pRemoteInetAddr = g_inet_socket_address_get_address(pRemoteSockAddr);
-	g_assert(g_inet_address_get_family(pRemoteInetAddr) == G_SOCKET_FAMILY_IPV4);
+	/* If the socket is bound to anycast address, we choose a source address for the 'remoteIp'.
+	 * If not, use bound socket address.
+	 */
+	if (g_inet_address_equal(g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(udpTransport->boundSockAddr)), IPV4_ANYCAST_ADDRESS)) {
+		struct sockaddr_in		mRemoteSockAddr;
+		struct sockaddr_in		mLocalSockAddr;
 
-	/* Query source address to use for destination */
-	if (QuerySrcIpv4AddrForDst(pRemoteSockAddr, &mLocalSockAddr.sin_addr) == -1)
-		return NULL;
-	mLocalSockAddr.sin_family = AF_INET;
-	mLocalSockAddr.sin_port = g_inet_socket_address_get_port (udpTransport->boundSockAddr);
+		mLocalSockAddr.sin_family = AF_INET;
+		mLocalSockAddr.sin_port = g_htons(g_inet_socket_address_get_port (G_INET_SOCKET_ADDRESS(udpTransport->boundSockAddr)));
 
-	/* IMPLEMENT: make sure that mLocalSockAddr is involved in udpTransport->boundSockAddr
-	 * ...
-	 * */
-	pLocalSockAddr = g_socket_address_new_from_native((gpointer)&mLocalSockAddr, sizeof(struct sockaddr_in));
-
-	pConn = IpcomConnectionNew(transport, pLocalSockAddr, pRemoteSockAddr);
-	g_assert(pConn);
-	{
-		if (g_hash_table_contains(udpTransport->connHash, pConn)) {
-			DWARN("Connection already exists.\n");
+		g_socket_address_to_native (pRemoteSockAddr, &mRemoteSockAddr, sizeof(struct sockaddr_in), &gerror);
+		if (gerror) {
+			DERROR("%s\n", gerror->message);
+			g_error_free(gerror);
 			return NULL;
 		}
-		g_hash_table_insert(udpTransport->connHash, pConn, pConn);
+		/// Lookup source address to use for remoteIP
+		if (QuerySrcIpv4AddrForDst(&mRemoteSockAddr.sin_addr, &mLocalSockAddr.sin_addr) == -1) {
+			DERROR("Cannot reach to destination.\n");
+			return NULL;
+		}
+
+		pLocalSockAddr = g_socket_address_new_from_native((gpointer)&mLocalSockAddr, sizeof(struct sockaddr_in));
+	} else
+		pLocalSockAddr = g_object_ref(G_INET_SOCKET_ADDRESS(udpTransport->boundSockAddr));
+
+	/* Look up that the connection flow already exists or not. */
+	flow.nProto = IPCOM_TRANSPORT_UDPV4;
+	flow.pLocalSockAddr = pLocalSockAddr;
+	flow.pRemoteSockAddr = pRemoteSockAddr;
+	if (!g_hash_table_contains(udpTransport->connHash, &flow)) {
+		pConn = IpcomConnectionNew(transport, IPCOM_TRANSPORT_UDPV4, pLocalSockAddr, pRemoteSockAddr);
+		g_assert(pConn);
+		g_hash_table_insert(udpTransport->connHash, IpcomConnectionGetFlow(pConn), pConn);
+	}
+	else {
+		DWARN("Connection already exists.\n");
 	}
 
 	if (pRemoteSockAddr) g_object_unref(pRemoteSockAddr);
@@ -144,43 +261,134 @@ _UDPv4Connect(IpcomTransport *transport, const gchar *remoteIp, guint16 remotePo
 	return pConn;
 }
 
+
 static gint
-_UDPv4Transmit(IpcomTransport *transport, IpcomConnection *conn, IpcomMessage *mesg)
+_UDPv4NativeSend(gint sockFd, struct sockaddr_in* local, struct sockaddr_in* remote, IpcomMessage *mesg)
 {
-	GError *gerror=NULL;
-	gssize sent_bytes;
 	struct iovec	iov[2];
-	struct in_pktinfo	pktinfo;
-	struct sockaddr_in	mRemoteSockAddr;
-	struct sockaddr_in	mLocalSockAddr;
+	struct msghdr	msgh = {0};
+	struct cmsghdr*	pcmsgh;
+	guint8			cmsg_buf[MAX_CMSG_SIZE] = {0};
+	struct in_pktinfo*	ppktinfo;
 
-	union {
-		struct msghdr	msgh;
-		char			data[100];
-	} auxmsg;
+	g_assert(remote);
 
-	g_socket_address_to_native ()
+	/* set iov for sending packet*/
 	iov[0].iov_base = mesg->vccpdu_ptr;
 	iov[0].iov_len = VCCPDUHEADER_SIZE;
 	iov[1].iov_base = mesg->payload_ptr;
 	iov[1].iov_len = IpcomMessageGetPaylodLength(mesg);
 
-	auxmsg.msgh.msg_name = conn->remoteSockAddr
+	/* fill msghdr for sendmsg() */
+	msgh.msg_name = remote;				// destination socket address
+	msgh.msg_namelen = sizeof(struct sockaddr_in);
+	msgh.msg_iov = iov;								// packet data
+	msgh.msg_iovlen = 2;
 
-	sendmsg
-	sent_bytes = g_socket_send_message(transport->socket, conn->remoteSockAddr, msg_vector, 2, NULL, 0, G_SOCKET_MSG_NONE, NULL, &gerror);
-	//sent_bytes = g_socket_send_to(transport->socket, conn->remoteSockAddr, IpcomMessageGetPaylodLength(mesg) + VCCPDUHEADER_SIZE, mesg->length, NULL, &gerror);
+	if (local) {
+		msgh.msg_control = &cmsg_buf;					// set control message buffer
+		msgh.msg_controllen = CMSG_SPACE(sizeof(struct in_pktinfo));
 
-	if (sent_bytes != IpcomMessageGetPaylodLength(mesg) + VCCPDUHEADER_SIZE) {
-		if (gerror) {
-			DERROR("%s\n", gerror->message);
-			g_error_free(gerror);
-			return -1;
-		}
-		DWARN("Only part of IpcomMessage was sent.(%d/%d)\n", (int)sent_bytes, IpcomMessageGetPacketSize(mesg));
+		/* fill control message for PKTINFO */
+		pcmsgh = CMSG_FIRSTHDR(&msgh);
+		pcmsgh->cmsg_level = IPPROTO_IP;
+		pcmsgh->cmsg_type = IP_PKTINFO;
+		pcmsgh->cmsg_len = CMSG_LEN(sizeof(struct in_pktinfo));
+
+		/* fill PKTINFO structure */
+		ppktinfo = (struct in_pktinfo*)CMSG_DATA(pcmsgh);
+		memcpy(&ppktinfo->ipi_spec_dst, &local->sin_addr, sizeof(struct in_addr));	// specify source IPv4 address for the packet
 	}
 
-	return sent_bytes;
+	/* Send the packet */
+	if ( sendmsg(sockFd, &msgh, 0) < 0 ) {
+		DERROR("%s\n", strerror(errno));
+		goto _UDPv4NativeSend_failed;
+	}
+
+	return IpcomMessageGetPaylodLength(mesg) + VCCPDUHEADER_SIZE;
+
+	_UDPv4NativeSend_failed:
+	return -1;
+}
+
+static gint
+_UDPv4Broadcast(IpcomTransport *transport, guint16 dport, IpcomMessage *mesg)
+{
+	IpcomTransportUDPv4*	udpTransport = UDPV4TRANSPORT_FROM_TRANSPORT(transport);
+	GInetAddress*		pBoundInetAddress;
+	GInetAddress*		pBroadcastAddress;
+	GList*				listBroadcastAddrs;
+	GList* 				iter;
+	struct sockaddr_in	mRemoteSockAddr;
+
+	if (!udpTransport->boundSockAddr) {
+		DERROR("UDPv4 transport is not bound.\n");
+		return -1;
+	}
+
+	mRemoteSockAddr.sin_family = AF_INET;
+	mRemoteSockAddr.sin_port = g_htons(dport);
+	pBoundInetAddress = g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(udpTransport->boundSockAddr));
+
+	/// If socket is bound to anycast address, we broadcast for each broadcast address.
+	if (g_inet_address_equal(pBoundInetAddress, IPV4_ANYCAST_ADDRESS)) {
+		listBroadcastAddrs = IpcomNetifMonitorGetAllBroadcastAddress(IpcomNetifcGetInstance());
+		if (!listBroadcastAddrs) goto _UDPv4Broadcast_failed;
+
+		for (iter = g_list_first(listBroadcastAddrs); iter != NULL; iter = g_list_next(iter)) {
+			if (g_inet_address_get_family((GInetAddress*)iter->data) == G_SOCKET_FAMILY_IPV4) {
+				memcpy(&mRemoteSockAddr.sin_addr, g_inet_address_to_bytes(iter->data), sizeof(struct in_addr));
+				_UDPv4NativeSend(g_socket_get_fd (transport->socket), NULL, &mRemoteSockAddr, mesg);
+			}
+		}
+		g_list_free(listBroadcastAddrs);
+	}
+	else { /// socket is bound to unicast address
+		pBroadcastAddress = IpcomNetifcMonitorQueryBroadcastAddressWithSrc(IpcomNetifcGetInstance(), pBoundInetAddress);
+		if (!pBroadcastAddress) goto _UDPv4Broadcast_failed;
+
+		memcpy(&mRemoteSockAddr.sin_addr, g_inet_address_to_bytes(pBroadcastAddress), sizeof(struct in_addr));
+		_UDPv4NativeSend(g_socket_get_fd (transport->socket), NULL, &mRemoteSockAddr, mesg);
+	}
+
+	return IpcomMessageGetPaylodLength(mesg) + VCCPDUHEADER_SIZE;
+
+	_UDPv4Broadcast_failed:
+	return -1;
+}
+
+static gint
+_UDPv4Transmit(IpcomTransport *transport, IpcomConnection *conn, IpcomMessage *mesg)
+{
+	IpcomTransportUDPv4*	udpTransport = UDPV4TRANSPORT_FROM_TRANSPORT(transport);
+	GError *gerror=NULL;
+	struct sockaddr_in	mRemoteSockAddr;
+	struct sockaddr_in	mLocalSockAddr;
+
+	g_assert(udpTransport->boundSockAddr);
+
+	if (IpcomConnectionIsBroadcast(conn)) {
+		guint16 dport = IpcomConnectionGetBroadConnectionPort(conn);
+		return dport > 0 ?
+				_UDPv4Broadcast(transport, dport, mesg) :
+				_UDPv4Broadcast(transport, g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(udpTransport->boundSockAddr)), mesg);
+	}
+	else {
+		/* convert Local/Remote GSocketAddress to native 'struct sockaddr_in' */
+		g_socket_address_to_native (IpcomConnectionGetLocalSockAddr(conn), &mLocalSockAddr, sizeof(struct sockaddr_in), &gerror);
+		if (gerror)	goto _UDPv4Transmit_failed;
+		g_socket_address_to_native (IpcomConnectionGetRemoteSockAddr(conn), &mRemoteSockAddr, sizeof(struct sockaddr_in), &gerror);
+		if (gerror)	goto _UDPv4Transmit_failed;
+
+		return _UDPv4NativeSend(g_socket_get_fd (transport->socket), &mLocalSockAddr, &mRemoteSockAddr, mesg);
+	}
+	_UDPv4Transmit_failed:
+	if (gerror) {
+		DWARN("%s", gerror->message);
+		g_error_free(gerror);
+	}
+	return -1;
 }
 
 static gboolean
@@ -191,6 +399,13 @@ _UDPv4Listen(IpcomTransport *transport, gint backlog)
 	return TRUE;
 }
 
+static IpcomConnection*
+_UDPv4GetBroadConnection(IpcomTransport *transport)
+{
+	IpcomTransportUDPv4*	udpTransport = UDPV4TRANSPORT_FROM_TRANSPORT(transport);
+	return udpTransport->pBroadConn;
+}
+#if 0
 static IpcomConnection *
 _UDPv4LookupConnection(IpcomTransport *transport, const gchar *localIpAddr, guint16 localPort, const gchar *remoteIpAddr, guint16 remotePort)
 {
@@ -206,6 +421,7 @@ _UDPv4LookupConnection(IpcomTransport *transport, const gchar *localIpAddr, guin
 
 	return conn;
 }
+#endif
 
 static IpcomTransport udpv4 = {
 		.type = IPCOM_TRANSPORT_UDPV4,
@@ -214,18 +430,19 @@ static IpcomTransport udpv4 = {
 		.connect = _UDPv4Connect,
 		.onReadyToReceive = _UDPv4Receive,
 		.listen = _UDPv4Listen,
-		.lookup = _UDPv4LookupConnection,
+		.getBroadConnection = _UDPv4GetBroadConnection,
+//		.lookup = _UDPv4LookupConnection,
 };
 
-//key is assumed to be IpcomConnection
+//key is assumed to be IpcomConnectionFlow
 static guint
 _UDPv4ConnHashFunc(gconstpointer key)
 {
-	IpcomConnection *conn = (IpcomConnection *)key;
+	IpcomConnectionFlow *pFlow = (IpcomConnectionFlow *)key;
 	struct sockaddr_in skaddr;
 	GError *gerror = NULL;
 
-	g_socket_address_to_native(conn->localSockAddr, &skaddr, sizeof(struct sockaddr_in), &gerror);
+	g_socket_address_to_native(pFlow->pRemoteSockAddr, &skaddr, sizeof(struct sockaddr_in), &gerror);
 	if (gerror) {
 		DERROR("%s\n", gerror->message);
 		g_assert(FALSE);
@@ -237,7 +454,7 @@ _UDPv4ConnHashFunc(gconstpointer key)
 static gboolean
 _UDPv4ConnEqual(gconstpointer a, gconstpointer b)
 {
-	return IpcomConnectionEqual((IpcomConnection*)a, (IpcomConnection*)b);
+	return IpcomConnectionFlowEqual((IpcomConnectionFlow*)a, (IpcomConnectionFlow*)b);
 }
 
 gboolean
@@ -291,23 +508,31 @@ IpcomTransportUDPv4New()
 	new->_transport = udpv4;
 	new->_transport.socket = g_socket_new(G_SOCKET_FAMILY_IPV4, G_SOCKET_TYPE_DATAGRAM, G_SOCKET_PROTOCOL_DEFAULT, &gerror);
 	if (!new->_transport.socket) goto _UDPv4New_failed;
-	if (!g_socket_set_option(new->_transport.socket, IPPROTO_IP, IP_PKTINFO, 1, gerror)) {
+	if (!g_socket_set_option(new->_transport.socket, IPPROTO_IP, IP_PKTINFO, 1, &gerror)) {
 		DWARN("%s\n", gerror->message);
 		g_error_free(gerror);
 		goto _UDPv4New_failed;
 	}
-
 	new->_transport.protocol = IpcomProtocolGetInstance();
 
 	//initialize IpcomTransportUDPv4 structure
 	new->boundSockAddr = NULL;
-	///key: struct sockaddr_in for remote sockaddr
-	///value: IpcomConnection
+	/*
+	 * connection hash
+	 * key: IpcomConnection*
+	 * value: IpcomConnection*
+	 */
 	new->connHash = g_hash_table_new(_UDPv4ConnHashFunc, _UDPv4ConnEqual);
 	new->mainContext = NULL;
 	new->socketSource = NULL;
+	///enable broadcasting
+	new->pBroadConn = IpcomConnectionNew(TRANSPORT_FROM_UDPv4TRANSPORT(new), 0, NULL, NULL);
+	g_socket_set_broadcast(new->_transport.socket, TRUE);
 
 	if (gerror) g_error_free(gerror);
+
+	//Update Network Information
+	IpcomNetifcMonitorUpdate(IpcomNetifcGetInstance());
 
 	return &new->_transport;
 
@@ -335,8 +560,16 @@ IpcomTransportUDPv4Destroy(IpcomTransport *transport)
 		}
 	}
 	if (udpTransport->socketSource) g_source_unref(udpTransport->socketSource);
-	if (udpTransport->connHash) g_hash_table_remove_all(udpTransport->connHash);
+	if (udpTransport->connHash) g_hash_table_destroy(udpTransport->connHash);
 	if (udpTransport->boundSockAddr) g_object_unref(udpTransport->boundSockAddr);
+	if (udpTransport->pBroadConn) IpcomConnectionUnref(udpTransport->pBroadConn);
 
 	g_free(udpTransport);
+}
+
+
+IpcomConnection *
+IpcomTransportUDPv4GetBroadConnection(IpcomTransportUDPv4 *udpTransport)
+{
+	return udpTransport->pBroadConn;
 }

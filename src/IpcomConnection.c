@@ -34,8 +34,8 @@ static void _IpcomConnectionFree(struct ref *r)
 {
 	IpcomConnection *pConn = container_of(r, IpcomConnection, _ref);
 
-	if (pConn->localSockAddr) g_object_unref(pConn->localSockAddr);
-	if (pConn->remoteSockAddr) g_object_unref(pConn->remoteSockAddr);
+	if (pConn->_flow.pLocalSockAddr) g_object_unref(pConn->_flow.pLocalSockAddr);
+	if (pConn->_flow.pRemoteSockAddr) g_object_unref(pConn->_flow.pRemoteSockAddr);
 
 	r->count = -1;
 	g_free(pConn);
@@ -57,15 +57,34 @@ IpcomConnectionUnref(IpcomConnection *conn)
 }
 
 IpcomConnection *
-IpcomConnectionNew(IpcomTransport *transport, GSocketAddress *localSockAddr, GSocketAddress *remoteSockAddr)
+IpcomConnectionNew(IpcomTransport *transport, IpcomTransportType proto, GSocketAddress *localSockAddr, GSocketAddress *remoteSockAddr)
 {
 	IpcomConnection *conn;
 
 	conn = g_malloc0(sizeof(IpcomConnection));
+	if (!conn) {
+		DERROR("Not enough memory");
+		return NULL;
+	}
+	conn->_flow.nProto = proto;
 
-	g_assert(localSockAddr && remoteSockAddr);
-	conn->localSockAddr = g_object_ref(localSockAddr);
-	conn->remoteSockAddr = g_object_ref(remoteSockAddr);
+	/* Normal connection needs complete localSockAddr and remoetSockAddr.
+	 * For broadcasting connection, the both of localSockAddr and remoteSockAddr should be NULL.
+	 */
+	if (localSockAddr && remoteSockAddr) {
+		conn->_flow.pLocalSockAddr = g_object_ref(localSockAddr);
+		conn->_flow.pRemoteSockAddr = g_object_ref(remoteSockAddr);
+	}
+	else if (!localSockAddr && !remoteSockAddr) {
+		conn->_flow.pLocalSockAddr = NULL;
+		conn->_flow.pRemoteSockAddr = NULL;
+	}
+	else {
+		DERROR("Connection has wrong argument.\n");
+		g_assert(FALSE);
+	}
+
+	conn->socket = NULL;
 	conn->protocol = IpcomProtocolGetInstance();
 	conn->transport = transport;
 

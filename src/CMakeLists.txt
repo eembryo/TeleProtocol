@@ -8,6 +8,7 @@ set(SRCS
    ./IpcomOperationContext.c
    ./IpcomOpStateMachine.c
    ./SocketUtils.c
+   ./IpcomNetifcMonitor.c
    ./IpcomEnums.c)
 
 add_library(${IPCOMM_LIB} SHARED ${SRCS})

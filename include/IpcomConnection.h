@@ -25,18 +25,16 @@
 G_BEGIN_DECLS
 
 typedef struct _IpcomConnectionFlow IpcomConnectionFlow;
-/*
+
 struct _IpcomConnectionFlow {
     GSocketAddress*	pLocalSockAddr;
     GSocketAddress*	pRemoteSockAddr;
-	guint			nProto;		// IPCOM_TRANSPORT_UDPV4, IPCOM_TRANSPORT_TCPV4
+    IpcomTransportType	nProto;		// IPCOM_TRANSPORT_UDPV4, IPCOM_TRANSPORT_TCPV4
 };
-*/
+
 struct _IpcomConnection {
 	struct _IpcomConnectionFlow	_flow;
-	guint16			proto;			// IPCOM_TRANSPORT_UDPV4, IPCOM_TRANSPORT_TCPV4
-	GSocketAddress	*localSockAddr;
-	GSocketAddress	*remoteSockAddr;
+	GSocket			*socket;
 	IpcomProtocol	*protocol;
 	IpcomTransport	*transport;
 	//<-- Implement incomming queue
@@ -44,37 +42,54 @@ struct _IpcomConnection {
 	struct ref		_ref;
 };
 
-IpcomConnection *IpcomConnectionNew(IpcomTransport *transport, GSocketAddress *localSockAddr, GSocketAddress *remoteSockAddr);
-IpcomConnection *IpcomConnectionRef(IpcomConnection *conn);
-void IpcomConnectionUnref(IpcomConnection *conn);
-gint IpcomConnectionPushOutgoingMessage(IpcomConnection *, IpcomMessage *);
-gint IpcomConnectionPushIncomingMessage(IpcomConnection *, IpcomMessage *);
-gint IpcomConnectionTransmitMessage(IpcomConnection *, IpcomMessage *);
+IpcomConnection*		IpcomConnectionNew(IpcomTransport *transport, IpcomTransportType proto, GSocketAddress *localSockAddr, GSocketAddress *remoteSockAddr);
+IpcomConnection*		IpcomConnectionRef(IpcomConnection *conn);
+void 					IpcomConnectionUnref(IpcomConnection *conn);
+gint 					IpcomConnectionPushOutgoingMessage(IpcomConnection *, IpcomMessage *);
+gint 					IpcomConnectionPushIncomingMessage(IpcomConnection *, IpcomMessage *);
+gint 					IpcomConnectionTransmitMessage(IpcomConnection *, IpcomMessage *);
 
+static inline IpcomConnectionFlow*	IpcomConnectionGetFlow(IpcomConnection *conn)
+{ return &conn->_flow; }
+static inline GSocketAddress*		IpcomConnectionGetLocalSockAddr(IpcomConnection *conn)
+{ return conn->_flow.pLocalSockAddr; }
+static inline GSocketAddress*		IpcomConnectionGetRemoteSockAddr(IpcomConnection *conn)
+{ return conn->_flow.pRemoteSockAddr; }
+static inline gboolean				IpcomConnectionFlowEqual(const IpcomConnectionFlow *a, const IpcomConnectionFlow *b) {
+	return a->nProto == b->nProto &&
+			g_inet_address_equal(g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(a->pLocalSockAddr)), g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(b->pLocalSockAddr))) &&
+			g_inet_address_equal(g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(a->pRemoteSockAddr)), g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(b->pRemoteSockAddr))) &&
+			g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(a->pLocalSockAddr)) == g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(b->pLocalSockAddr)) &&
+			g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(a->pRemoteSockAddr)) == g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(b->pRemoteSockAddr));
+}
+static inline gboolean				IpcomConnectionIsBroadcast(const IpcomConnection *conn)
+{ return conn->_flow.pLocalSockAddr == NULL ? TRUE : FALSE; }
+static inline gboolean				IpcomConnectionSetBroadConnectionPort(IpcomConnection *conn, guint16 dport) {
+	if (!IpcomConnectionIsBroadcast(conn)) return FALSE;
+	conn->_flow.pRemoteSockAddr = (GSocketAddress *)GINT_TO_POINTER(dport);
+	return TRUE;
+}
+static inline gint					IpcomConnectionGetBroadConnectionPort(IpcomConnection *conn) {
+	if (!IpcomConnectionIsBroadcast(conn)) return -1;
+	return GPOINTER_TO_INT(conn->_flow.pRemoteSockAddr);
+}
+
+//deprecated
+#if 0
 static inline gboolean IpcomConnectionMatch(IpcomConnection* pConn, guint proto, GInetAddress *srcAddr, guint16 sport, GInetAddress *dstAddr, guint16 dport)
 {
 	return pConn->proto == proto &&
-			g_inet_address_equal(g_inet_socket_address_get_address(pConn->localSockAddr), srcAddr) && g_inet_socket_address_get_port(pConn->localSockAddr) == sport &&
-			g_inet_address_equal(g_inet_socket_address_get_address(pConn->remoteSockAddr), dstAddr) && g_inet_socket_address_get_port(pConn->remoteSockAddr) == dport ? TRUE : FALSE;
+			g_inet_address_equal(g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(pConn->localSockAddr)), srcAddr) && g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(pConn->localSockAddr)) == sport &&
+			g_inet_address_equal(g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(pConn->remoteSockAddr)), dstAddr) && g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(pConn->remoteSockAddr)) == dport
+			? TRUE : FALSE;
 }
 static inline gboolean IpcomConnectionEqual(IpcomConnection *a, IpcomConnection *b)
 {
 	return IpcomConnectionMatch(a, b->proto,
-			g_inet_socket_address_get_address(b->localSockAddr), g_inet_socket_address_get_port(b->localSockAddr),
-			g_inet_socket_address_get_address(b->remoteSockAddr),g_inet_socket_address_get_port(b->remoteSockAddr));
+			g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(b->localSockAddr)), g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(b->localSockAddr)),
+			g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(b->remoteSockAddr)), g_inet_socket_address_get_port(G_INET_SOCKET_ADDRESS(b->remoteSockAddr)));
 }
-/*
-static inline gboolean IpcomConnectionFlowEqual(IpcomConnectionFlow* pConnFlow, guint proto, GInetAddress *srcAddr, guint16 sport, GInetAddress *dstAddr, guint16 dport)
-{
-	if (pConnFlow->nProto != proto) return FALSE;
-	else if (!g_inet_address_new_any(pConnFlow->pLocalAddr) && !g_inet_address_equal(pConnFlow->pLocalAddr, srcAddr)) return FALSE;
-	else if (pConnFlow->nLocalPort != sport) return FALSE;
-	else if (!g_inet_address_new_any(pConnFlow->pRemoteAddr) && !g_inet_address_equal(pConnFlow->pRemoteAddr, dstAddr)) return FALSE;
-	else if (pConnFlow->nRemotePort != dport) return FALSE;
-
-	return TRUE;
-}
-*/
+#endif
 G_END_DECLS
 
 #endif
