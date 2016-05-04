@@ -11,6 +11,7 @@ local service_code = {
    [0xA8] = "Common All",
    [0xA9] = "Positioning",
    [0xAA] = "Diagnostic Management",
+   [0xFFFF] = "IP Activity",
 }
 
 local operationID_code = {
@@ -56,6 +57,9 @@ local operationID_code = {
       [0x0A06] = "CurrentDoIPState",
       [0x0A07] = "CurrentDoIPConnection",
    },
+   [0xFFFF] = {
+      [0xff01] = "IP_Activity",
+   },
 }
 
 local optype_code = {
@@ -70,24 +74,24 @@ local optype_code = {
    [0xE0] = "ERROR                "
 }
 
-local pf_service_id	= ProtoField.new	("Service ID", "ipcomm.service_id", ftypes.UINT16, nil, base.HEX)
-local pf_operation_id	= ProtoField.new	("Operation ID", "ipcomm.op_id", ftypes.UINT16, nil, base.HEX)
-local pf_length		= ProtoField.new	("Length", "ipcomm.length", ftypes.UINT32)
-local pf_handle_id	= ProtoField.new	("SenderHandleID", "ipcomm.handle_id", ftypes.UINT32, nil, base.HEX)
-local pf_handle_service_id	= ProtoField.new	("HandleServiceID", "ipcomm.handle_service_id8", ftypes.UINT8, nil, base.HEX)
-local pf_handle_operation_id	= ProtoField.new	("HandleOperationID", "ipcomm.handle_op_id", ftypes.UINT8, nil, base.HEX)
-local pf_handle_op_type		= ProtoField.new	("HandleOperationType", "ipcomm.handle_op_type", ftypes.UINT8, nil, base.HEX)
-local pf_handle_seqNr		= ProtoField.new	("HandleSeqNr","ipcomm.handle_seqNr", ftypes.UINT8, nil, base.HEX)
-local pf_proto_version	= ProtoField.new	("Protocol version", "ipcomm.proto_version", ftypes.UINT8, nil, base.HEX)
-local pf_opType		= ProtoField.new	("OpType", "ipcomm.op_type", ftypes.UINT8, nil, base.HEX)
-local pf_dataType	= ProtoField.new	("DataType", "ipcomm.data_type", ftypes.UINT8, nil, base.HEX)
-local pf_reserved	= ProtoField.new	("Reserved", "ipcomm.reserved", ftypes.UINT8, nil, base.HEX)
+local pf_service_id     = ProtoField.new        ("Service ID", "ipcomm.service_id", ftypes.UINT16, nil, base.HEX)
+local pf_operation_id   = ProtoField.new        ("Operation ID", "ipcomm.op_id", ftypes.UINT16, nil, base.HEX)
+local pf_length         = ProtoField.new        ("Length", "ipcomm.length", ftypes.UINT32)
+local pf_handle_id      = ProtoField.new        ("SenderHandleID", "ipcomm.handle_id", ftypes.UINT32, nil, base.HEX)
+local pf_handle_service_id      = ProtoField.new        ("HandleServiceID", "ipcomm.handle_service_id8", ftypes.UINT8, nil, base.HEX)
+local pf_handle_operation_id    = ProtoField.new        ("HandleOperationID", "ipcomm.handle_op_id", ftypes.UINT8, nil, base.HEX)
+local pf_handle_op_type         = ProtoField.new        ("HandleOperationType", "ipcomm.handle_op_type", ftypes.UINT8, nil, base.HEX)
+local pf_handle_seqNr           = ProtoField.new        ("HandleSeqNr","ipcomm.handle_seqNr", ftypes.UINT8, nil, base.HEX)
+local pf_proto_version  = ProtoField.new        ("Protocol version", "ipcomm.proto_version", ftypes.UINT8, nil, base.HEX)
+local pf_opType         = ProtoField.new        ("OpType", "ipcomm.op_type", ftypes.UINT8, nil, base.HEX)
+local pf_dataType       = ProtoField.new        ("DataType", "ipcomm.data_type", ftypes.UINT8, nil, base.HEX)
+local pf_reserved       = ProtoField.new        ("Reserved", "ipcomm.reserved", ftypes.UINT8, nil, base.HEX)
 
 ipcomm.fields = { pf_service_id, pf_operation_id,
-		  pf_length,
-		  pf_handle_id,
-		  pf_handle_service_id, pf_handle_operation_id, pf_handle_op_type, pf_handle_seqNr,
-		  pf_proto_version, pf_opType, pf_dataType, pf_reserved }
+                  pf_length,
+                  pf_handle_id,
+                  pf_handle_service_id, pf_handle_operation_id, pf_handle_op_type, pf_handle_seqNr,
+                  pf_proto_version, pf_opType, pf_dataType, pf_reserved }
 
 local service_field = Field.new("ipcomm.service_id")
 local opid_field = Field.new("ipcomm.op_id")
@@ -112,7 +116,7 @@ function ipcomm.dissector(tvbuf, pktinfo, root)
    local opid_item = tree:add(pf_operation_id, tvbuf:range(2,2))
    local opid_string = operationID_code[service_field()()][opid_field()()]
    if opid_string == nil then
-      opid_string = "unknown operation ID"
+      opid_string = "unknown_operation_ID"
    end
    opid_item:append_text(" ("..opid_string..")")
 
@@ -135,10 +139,35 @@ function ipcomm.dissector(tvbuf, pktinfo, root)
    tree:add(pf_dataType, tvbuf:range(14,1))
    tree:add(pf_reserved, tvbuf:range(15,1))
 
-   pktinfo.cols.info:set(opid_string.."."..optype_string.."   (SenderHandleID: "..string.format("0x%.4X", handleid_field()())..")")
+   pktinfo.cols.info:set("[" .. pktinfo.src_port .. "-->" .. pktinfo.dst_port.."]")
+   pktinfo.cols.info:append(" "..opid_string.."."..optype_string.."   (SenderHandleID: "..string.format("0x%.4X", handleid_field()())..")")
 
+
+   ipcomm_payload_dissector(service_field()(), opid_field()(), optype_field()(), TvbRange.tvb(tvbuf:range(16)), tree)
+   
    local IPCOM_HDR_LEN = 12
    return IPCOM_HDR_LEN
 end
 
+
+-- Parsing Payload
+local payload_dissector_table = {
+   [0x00a1] = {
+      [0x0104] = {
+         [0x06] = function(tvbuf, pktinfo, root)
+            local handle_tree = tree:
+            print ("function") end
+      },
+   },
+}
+
+local pf_keylockEnabled       = ProtoField.new        ("KeyLockEnabled", "ipcomm_payload.KeyLockEnabled", ftypes.UINT8, nil, base.HEX)
+
+function ipcomm_payload_dissector(serviceid, opid, optype, tvbuf, tree_item)
+   dprint("serviceid:"..string.format("0x%.04x",serviceid)..", opid:"..string.format("0x%.04x",opid)..", optype:"..string.format("0x%.02x",optype))
+   tree_item:add_packet_field(pf_keylockEnabled, tvbuf:range(0,tvbuf:reported_length_remaining()), ENC_LITTLE_ENDIAN)
+                              --payload_dissector_table[0x00a1][0x0104][0x06]()
+end
+
+DissectorTable.get("udp.port"):add(50001, ipcomm)
 DissectorTable.get("udp.port"):add(50000, ipcomm)

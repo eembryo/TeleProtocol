@@ -30,6 +30,7 @@ typedef struct _VCCPDUHeader 								VCCPDUHeader;
 typedef struct _IpcomProtocol								IpcomProtocol;
 typedef struct _IpcomOpContext								IpcomOpContext;
 typedef struct _IpcomOpContextId							IpcomOpContextId;
+//typedef const struct _IpcomOpContextId*						IpcomOpHandle;
 typedef struct _IpcomService 								IpcomService;
 typedef struct _IpcomTransport 								IpcomTransport;
 typedef struct _IpcomTransportUDPv4 						IpcomTransportUDPv4;

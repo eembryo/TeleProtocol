@@ -93,7 +93,7 @@ QuerySrcIpv4AddrForDst(const struct in_addr *target, struct in_addr *out)
 	union {
 		struct nlmsghdr	nlh;
 		char 			data[MAX_CMSG_SIZE];
-	} nl_req, nl_resp = {0};
+	} nl_req = {0}, nl_resp = {0};
 
 	struct rtmsg*	p_rtm;
 	struct rtattr*	p_rta;

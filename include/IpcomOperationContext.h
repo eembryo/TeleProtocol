@@ -23,6 +23,8 @@
 #include <ref_count.h>
 #include <math.h>
 
+G_BEGIN_DECLS
+
 struct _IpcomOpContextId
 {
 	guint32				senderHandleId;
@@ -105,5 +107,7 @@ gboolean									IpcomOpContextCancelTimer(IpcomOpContext *opContext);
 
 IpcomOpContext*								IpcomOpContextRef(IpcomOpContext *ctx);
 void										IpcomOpContextUnref(IpcomOpContext *ctx);
+
+G_END_DECLS
 
 #endif /* IPCOMMANDPROTOCOL_INCLUDE_IPCOMOPERATIONCONTEXT_H_ */

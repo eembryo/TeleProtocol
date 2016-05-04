@@ -27,8 +27,8 @@ G_BEGIN_DECLS
 typedef struct _IpcomConnectionFlow IpcomConnectionFlow;
 
 struct _IpcomConnectionFlow {
-    GSocketAddress*	pLocalSockAddr;
-    GSocketAddress*	pRemoteSockAddr;
+    GSocketAddress*		pLocalSockAddr;
+    GSocketAddress*		pRemoteSockAddr;
     IpcomTransportType	nProto;		// IPCOM_TRANSPORT_UDPV4, IPCOM_TRANSPORT_TCPV4
 };
 

@@ -9,7 +9,8 @@ set(SRCS
    ./IpcomOpStateMachine.c
    ./SocketUtils.c
    ./IpcomNetifcMonitor.c
-   ./IpcomEnums.c)
+   ./IpcomEnums.c
+   ./IpcomSimpleAgent.c)
 
 add_library(${IPCOMM_LIB} SHARED ${SRCS})
 target_link_libraries(${IPCOMM_LIB} ${LIBRARIES})

@@ -34,9 +34,10 @@ static void _IpcomConnectionFree(struct ref *r)
 {
 	IpcomConnection *pConn = container_of(r, IpcomConnection, _ref);
 
-	if (pConn->_flow.pLocalSockAddr) g_object_unref(pConn->_flow.pLocalSockAddr);
-	if (pConn->_flow.pRemoteSockAddr) g_object_unref(pConn->_flow.pRemoteSockAddr);
-
+	if (!IpcomConnectionIsBroadcast(pConn)) {
+		if (pConn->_flow.pLocalSockAddr) g_object_unref(pConn->_flow.pLocalSockAddr);
+		if (pConn->_flow.pRemoteSockAddr) g_object_unref(pConn->_flow.pRemoteSockAddr);
+	}
 	r->count = -1;
 	g_free(pConn);
 }
@@ -75,7 +76,7 @@ IpcomConnectionNew(IpcomTransport *transport, IpcomTransportType proto, GSocketA
 		conn->_flow.pLocalSockAddr = g_object_ref(localSockAddr);
 		conn->_flow.pRemoteSockAddr = g_object_ref(remoteSockAddr);
 	}
-	else if (!localSockAddr && !remoteSockAddr) {
+	else if (!localSockAddr) {
 		conn->_flow.pLocalSockAddr = NULL;
 		conn->_flow.pRemoteSockAddr = NULL;
 	}

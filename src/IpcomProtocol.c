@@ -249,6 +249,7 @@ _IpcomProtocolHandleREQUEST(IpcomProtocol *proto, IpcomOpContext *opContext, Ipc
 	g_assert(service);
 
 	if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_REQUEST, GINT_TO_POINTER(0)) < 0) {
+		DWARN("failed to trigger OPCONTEXT_TRIGGER_RECV_REQUEST.(OpContext:%p)\n", opContext);
 		goto HandleREQUEST_failed;
 	}
 	IpcomOpContextSetMessage(opContext, mesg);
@@ -256,11 +257,13 @@ _IpcomProtocolHandleREQUEST(IpcomProtocol *proto, IpcomOpContext *opContext, Ipc
 	if (err) {
 		//!! NEED IMPLEMENTATION
 	}
-	IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_PROCESS_DONE, GINT_TO_POINTER(0));
+	if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_PROCESS_DONE, GINT_TO_POINTER(0)) < 0) {
+		DWARN("failed to trigger OPCONTEXT_TRIGGER_PROCESS_DONE.(OpContext:%p)\n", opContext);
+		goto HandleREQUEST_failed;
+	}
 	return 0;
 
 	HandleREQUEST_failed:
-	//IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_UNKNOWN_FAILURE));
 	return -1;
 }
 
@@ -272,12 +275,15 @@ _IpcomProtocolHandleRESPONSE(IpcomProtocol *proto, IpcomOpContext *opContext, Ip
 	_SendACKFor(proto, IpcomOpContextGetConnection(opContext), mesg);
 
 	if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_RESPONSE, GINT_TO_POINTER(0)) < 0) {
-		DWARN("failed to trigger OPCONTEXT_TRIGGER_RECV_RESPONSE.\n");
+		DWARN("failed to trigger OPCONTEXT_TRIGGER_RECV_RESPONSE.(OpContext:%p)\n", opContext);
 		goto HandleRESPONSE_failed;
 	}
 	/// call callback function
 	IpcomOpContextGetRecvCallback(opContext)(IpcomOpContextGetContextId(opContext), mesg, IpcomOpContextGetRecvCallbackData(opContext));
-	IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_PROCESS_DONE, GINT_TO_POINTER(0));
+	if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_PROCESS_DONE, GINT_TO_POINTER(0)) < 0) {
+		DWARN("failed to trigger OPCONTEXT_TRIGGER_PROCESS_DONE.(OpContext:%p)\n", opContext);
+		goto HandleRESPONSE_failed;
+	}
 
 	return 0;
 
@@ -292,6 +298,7 @@ _IpcomProtocolHandleACK(IpcomProtocol *proto, IpcomOpContext *opContext, IpcomMe
 	DFUNCTION_START;
 
 	if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_RECV_ACK, GINT_TO_POINTER(0)) < 0) {
+		DWARN("failed to trigger OPCONTEXT_TRIGGER_RECV_ACK.(OpContext:%p)\n", opContext);
 		goto HandleACK_failed;
 	}
 	return 0;
@@ -315,7 +322,9 @@ _IpcomProtocolHandleERROR(IpcomProtocol *proto, IpcomOpContext *opContext, Ipcom
 
 	// IMPLEMENT: Trigger should be TRIGGER_ERROR
 	// IMPLEMENT: change FINCODE according to error message
-	IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_PEER_NOT_OK));
+	if (IpcomOpContextTrigger(opContext, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_PEER_NOT_OK)) < 0) {
+		DWARN("failed to trigger OPCONTEXT_TRIGGER_FINALIZE.(OpContext:%p)\n", opContext);
+	}
 
 	return 0;
 }
@@ -334,6 +343,8 @@ IpcomProtocolSendMessageFull(IpcomProtocol *proto, IpcomConnection *conn, IpcomM
 	IpcomOpContextId	*ret;
 	gint				trigger;
 
+	DINFO("Trying to send (OpType:0x%.02x, SHID:0x%.04x, Connection:%p)\n", IpcomMessageGetVCCPDUOpType(mesg), ctxId.senderHandleId, ctxId.connection);
+
 	if (g_hash_table_contains(proto->pOpContextHash, &ctxId)) {
 		if (error) g_set_error(error, IPCOM_PROTOCOL_ERROR, 0, "Failed to send a message: Already registered context ID.");
 		goto _SendMessage_failed;
@@ -345,6 +356,10 @@ IpcomProtocolSendMessageFull(IpcomProtocol *proto, IpcomConnection *conn, IpcomM
 	case IPCOM_OPTYPE_NOTIFICATION_REQUEST:
 	case IPCOM_OPTYPE_SETREQUEST_NORETURN:
 	case IPCOM_OPTYPE_NOTIFICATION:
+		//For debug
+#ifdef DEBUG
+		if (IpcomConnectionIsBroadcast(conn)) g_assert(FALSE);
+#endif
 		trigger = IpcomMessageGetVCCPDUOpType(mesg) == IPCOM_OPTYPE_NOTIFICATION ? OPCONTEXT_TRIGGER_SEND_NOTIFICATION : OPCONTEXT_TRIGGER_SEND_REQUEST;
 
 		ctx = IpcomOpContextNewAndRegister(ctxId.connection, ctxId.senderHandleId,
@@ -398,7 +413,9 @@ IpcomProtocolCancelOpContext(IpcomProtocol *proto, const IpcomOpContextId *pOpCo
 {
 	IpcomOpContext *ctx = IpcomProtocolLookupAndGetOpContext(proto, pOpContextId);
 	if (!ctx) return;
-	IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_CANCELLED));
+	if (IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_CANCELLED)) < 0) {
+		DWARN("failed to trigger OPCONTEXT_TRIGGER_FINALIZE.(OpContext:%p)\n", ctx);
+	}
 }
 
 IpcomOpContext *
@@ -421,7 +438,9 @@ IpcomProtocolRespondError(IpcomProtocol *proto, const IpcomOpContextId *opContex
 
 	/// We donot care whether error message is delivered successfully or not.
 	_SendERRORMessage(proto, IpcomOpContextGetConnection(ctx), IpcomOpContextGetServiceID(ctx), IpcomOpContextGetOperationID(ctx), IpcomOpContextGetSenderHandleID(ctx), IpcomOpContextGetProtoVersion(ctx), ecode, einfo);
-	IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_APP_ERROR));
+	if (IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_FINALIZE, GINT_TO_POINTER(OPCONTEXT_FINCODE_APP_ERROR))< 0) {
+		DWARN("failed to trigger OPCONTEXT_TRIGGER_FINALIZE.(OpContext:%p)\n", ctx);
+	}
 
 	IpcomOpContextUnref(ctx);
 	return 0;
@@ -467,8 +486,7 @@ IpcomProtocolHandleMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMes
 			.senderHandleId = IpcomMessageGetVCCPDUSenderHandleID(mesg)
 	};
 
-	//DFUNCTION_START;
-	DPRINT("Handle Message (SenderHandleID: %x)\n", IpcomMessageGetVCCPDUSenderHandleID(mesg));
+	DINFO("Handle Message (OpType:0x%.02x, SHID:0x%.04x, Connection:%p)\n", IpcomMessageGetVCCPDUOpType(mesg), ctxId.senderHandleId, ctxId.connection);
 
 	if(!_ValidateReceivedMessage(proto, conn, mesg)) {
 		goto _HandleMessage_failed;
@@ -533,7 +551,7 @@ _HandleMessage_failed:
 /**
  * deprecated functions
  */
-#if 0
+#if 1
 gint
 IpcomProtocolSendMessage(IpcomProtocol *proto, IpcomConnection *conn, IpcomMessage *mesg,
 		IpcomReceiveMessageCallback recv_cb, gpointer userdata)

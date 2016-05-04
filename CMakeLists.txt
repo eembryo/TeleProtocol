@@ -19,7 +19,7 @@ cmake_minimum_required(VERSION 2.8.1)
 
 project(IPCOMMANDPROTOCOL C)
 
-add_definitions(-DDEBUG -DENABLE_LOG_COLOR -DTESTAPP_DEBUG -g -Wall)
+add_definitions(-DDEBUG=DLOG_LEVEL_ALL -DENABLE_LOG_COLOR -DTESTAPP_DEBUG -g -Wall)
 
 set(IPCOMM_LIB ipcmd)
 
@@ -29,6 +29,7 @@ pkg_check_modules(GIO REQUIRED gio-2.0)
 pkg_check_modules(GIO_UNIX REQUIRED gio-unix-2.0)
 
 include_directories(include)
+include_directories(include_internal)
 include_directories(
                     ${GLIB2_INCLUDE_DIRS}
                     ${GIO_INCLUDE_DIRS}
@@ -49,3 +50,5 @@ add_subdirectory(test)
 
 install(DIRECTORY include DESTINATION /app/
   FILES_MATCHING PATTERN "*.h")
+
+install(FILES res/libipcmd.pc DESTINATION /app/lib/pkgconfig/)

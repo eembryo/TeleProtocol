@@ -21,6 +21,7 @@ static gint DoAction_Ignore(IpcomOpState *pOpState, IpcomProtocolOpContextTrigge
  *  *******************************/
 DECLARE_SM_ENTRY(DoAction_NotDetermined)
 {
+	DERROR("Not determined action.\n");
 	return -1;
 }
 DECLARE_SM_ENTRY(DoAction_Ignore)
@@ -188,6 +189,7 @@ DECLARE_SM_ENTRY(DoAction_CLRO_NOTIFICATIONSENT_RECVACK)
 static void IpcomOpStateMachine_CLNoti_Init() {
 	SM_CLNoti.actions[OPCONTEXT_STATUS_NONE][OPCONTEXT_TRIGGER_SEND_NOTIFICATION] = DoAction_CLRO_NONE_SENDNOTIFICATION;
 	SM_CLNoti.actions[OPCONTEXT_STATUS_NOTIFICATION_SENT][OPCONTEXT_TRIGGER_RECV_ACK] = DoAction_CLRO_NOTIFICATIONSENT_RECVACK;
+	SM_CLNoti.actions[OPCONTEXT_STATUS_NOTIFICATION_SENT][OPCONTEXT_TRIGGER_WFA_EXPIRED] = DoAction_XXX_ANY_WFAEXPIRED;
 }
 /***********************************************************
  * Initialize connectionless Request Response State machine

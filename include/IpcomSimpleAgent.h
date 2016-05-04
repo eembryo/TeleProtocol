@@ -2,50 +2,75 @@
 #define __IpcomSimpleAgent_h_
 
 #include <glib.h>
+#include <IpcomEnums.h>
 #include <IpcomTypes.h>
 
-typedef struct _IpcomSimpleAgent IpcomSimpleAgent;
-typedef struct _IpcomAgent IpcomAgent;
+G_BEGIN_DECLS
 
-typedef const IpcomOpContextId*						IpcomOpHandle;
-typedef const IpcomConnection*						IpcomConnectionHandle;
-typedef const gpointer	IpcomAgentSocket;
+/**************
+ * IpcomAgent
+ **************/
+typedef IpcomOpContextId*			IpcomOpHandle;
+typedef IpcomConnection*			IpcomConnectionHandle;
+typedef gpointer					IpcomAgentSocket;
+typedef struct _IpcomAgent			IpcomAgent;
 
-typedef IpcomServiceReturn 		(*IpcomAgentOnRecvResponse)(IpcomAgent*,IpcomOpHandle,IpcomMessage*,gpointer userdata);
-typedef IpcomServiceReturn 		(*IpcomAgentOnOpCtxDestroy)(IpcomAgent*,IpcomOpContextId *opContextId, gint code, gpointer userdata);
+//typedef IpcomServiceReturn 		(*IpcomAgentOnOpResponse)(IpcomAgent*,IpcomOpHandle,IpcomMessage,gpointer userdata);
+//typedef IpcomServiceReturn		(*IpcomAgentOnOpDestroyed)(IpcomAgent*,IpcomOpHandle,IpcomOpContextFinCode,gpointer userdata);
+typedef struct _AgentMsgHandlers	IpcomAgentMsgHandlers;
+typedef struct _AgentOpCallbacks	IpcomAgentOpCallbacks;
+struct _AgentOpCallbacks {
+	IpcomServiceReturn 		(*OnOpResponse)(IpcomAgent*,IpcomOpHandle,IpcomMessage*,gpointer userdata);
+	void					(*OnOpDestroyed)(IpcomAgent*,IpcomOpHandle,IpcomOpContextFinCode,gpointer userdata);
+	gpointer				userdata;
+};
+struct _AgentMsgHandlers {
+	IpcomServiceReturn 		(*OnReceiveMesg)(IpcomAgent*,IpcomOpHandle,IpcomMessage*,gpointer userdata);
+	IpcomServiceReturn 		(*OnReceiveNoti)(IpcomAgent*,IpcomMessage*,gpointer userdata);
+	gpointer				userdata;
+};
 
 struct _IpcomAgent {
-	IpcomAgentSocket	(*ConnectTo)			(IpcomAgent*,IpcomTransportType, const gchar *dst, guint16 dport, GError **gerror);
-	IpcomAgentSocket	(*ListenAt)				(IpcomAgent*,IpcomTransportType, const gchar *src, guint16 sport, GError **gerror);
-	void				(*CloseAgentSocket)		(IpcomAgent*,IpcomAgentSocket asock);
-	IpcomOpHandle		(*SendMessage)			(IpcomAgent*,IpcomMessage*,IpcomReceiveMessageCallback, IpcomOpCtxDestroyNotify, gpointer userdata, GError **gerror);
-	gint				(*RespondMessage)		(IpcomAgent*,IpcomOpHandle, IpcomMessage*,IpcomOpCtxDestroyNotify);
-	void				(*CancelOperation)		(IpcomAgent*,IpcomOpHandle);
-	gboolean			(*RegisterMessageHandler)(IpcomAgent*,guint16 serviceId,IMsgHandler msgHandler, GError **gerror);
+	IpcomAgentSocket	(*Bind)							(IpcomAgent*,IpcomTransportType,const gchar *src,guint16 sport,GError**);
+	gboolean			(*ConnectTo)					(IpcomAgent*,IpcomAgentSocket,const gchar *dst,guint16 dport,GError**);
+	gboolean			(*ListenAt)						(IpcomAgent*,IpcomAgentSocket,GError**);
+	gboolean			(*Broadcast)					(IpcomAgent*,IpcomAgentSocket,IpcomMessage*,GError**);
+	IpcomAgentSocket	(*GetAcceptedConnection)		(IpcomAgent*,IpcomAgentSocket,const gchar *dst,guint16 dport,GError**);
+	void				(*CloseAgentSocket)				(IpcomAgent*,IpcomAgentSocket);
+
+	IpcomOpHandle		(*OperationSend)				(IpcomAgent*,IpcomAgentSocket,IpcomMessage*,const IpcomAgentOpCallbacks*,GError**);
+	gboolean			(*OperationRespond)				(IpcomAgent*,IpcomOpHandle,   IpcomMessage*,const IpcomAgentOpCallbacks*,GError**);
+	void				(*OperationCancel)				(IpcomAgent*,IpcomOpHandle);
+
+	gboolean			(*RegisterMessageHandlers)		(IpcomAgent*,guint16 serviceId,const IpcomAgentMsgHandlers*, GError**);
+	void				(*UnRegisterMessageHandlers)	(IpcomAgent*,guint16 serviceId);
 };
+
+/*****************
+ * IpcomSimpleAgent
+ * ***************/
+typedef struct _IpcomSimpleAgent	IpcomSimpleAgent;
+typedef enum {
+	NOT_INIT_MODE = 0,
+	BINDING_MODE,
+	CONNECTED_MODE,
+	LISTEN_MODE
+} IpcomSimpleAgentMode;
 
 struct _IpcomSimpleAgent {
-	guint8			mode;		//0 - NOT initialized, 1 - connect mode, 2 - listen mode
-	IpcomConnection*	conn;
-	IpcomTransport*	pTransport;
-	IpcomProtocol*	pProtocol;
-	GMainContext*	pGlibContext;
+	IpcomAgent				_agent;
+	IpcomSimpleAgentMode 	mode;		//0 - NOT initialized, 1 - connect mode, 2 - listen mode
+	IpcomConnection*		pConnection;
+	IpcomConnection*		pBroadConnection;
+	IpcomTransport*			pTransport;
+	IpcomProtocol*			pProtocol;
+	GMainContext*			pGlibContext;
+	GHashTable*				hashSocketTable;
 };
 
-typedef struct _IMsgHandler IMsgHandler;
+IpcomAgent*			IpcomSimpleAgentCreate(GMainContext* pMainContext);
+void				IpcomSimpleAgentDestroy(IpcomAgent*);
 
-struct _IMsgHandler {
-	IpcomServiceProcessMessage	OnReceiveMesg;
-	IpcomServiceProcessNoti 	OnReceiveNoti;
-};
-
-IpcomSimpleAgent*	IpcomSimpleAgentCreate();
-void				IpcomSimpleAgentDestroy(IpcomSimpleAgent*);
-gboolean			IpcomSimpleAgentConnectTo(IpcomSimpleAgent* agent, IpcomTransportType proto, const gchar *dst, guint16 dport, GError **gerror);
-gboolean			IpcomSimpleAgentListenAt(IpcomSimpleAgent* agent,IpcomTransportType proto, const gchar *src, guint16 sport, GError **gerror);
-gboolean			IpcomSimpleAgentRegisterMessageHandler(IpcomSimpleAgent* agent, guint16 serviceId, IMsgHandler msgHandler, GError **gerror);
-IpcomOpHandle		IpcomSimpleAgentSendMessage(IpcomSimpleAgent*, IpcomMessage*, IpcomReceiveMessageCallback, IpcomOpCtxDestroyNotify, gpointer, GError **gerror);
-gint				IpcomSimpleAgentBroadcast(IpcomSimpleAgent*, IpcomMessage*, GError **gerror);
-gint				IpcomSimpleAgentRespondMessage(IpcomSimpleAgent*, IpcomOpHandle, IpcomMessage*, IpcomOpCtxDestroyNotify, gpointer, GError **gerror);
+G_END_DECLS
 
 #endif

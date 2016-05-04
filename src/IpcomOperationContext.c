@@ -19,7 +19,10 @@ DefaultOnWFATimerExpired(gpointer data)
 	DFUNCTION_START;
 
 	IpcomOpContextRef(ctx);
-	IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_WFA_EXPIRED, GINT_TO_POINTER(0));
+	if (IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_WFA_EXPIRED, GINT_TO_POINTER(0)) < 0) {
+		DERROR("Failed to trigger WFA_EXPIRED.\n");
+		g_assert(FALSE);
+	}
 	IpcomOpContextUnref(ctx);
 	return G_SOURCE_REMOVE;
 }
@@ -32,7 +35,10 @@ DefaultOnWFRTimerExpired(gpointer data)
 	DFUNCTION_START;
 
 	IpcomOpContextRef(ctx);
-	IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_WFR_EXPIRED, GINT_TO_POINTER(0));
+	if (IpcomOpContextTrigger(ctx, OPCONTEXT_TRIGGER_WFR_EXPIRED, GINT_TO_POINTER(0)) < 0) {
+		DERROR("Failed to trigger WFR_EXPIRED.\n");
+		g_assert(FALSE);
+	}
 	IpcomOpContextUnref(ctx);
 	return G_SOURCE_REMOVE;
 }

@@ -3,6 +3,8 @@
 
 #include <IpcomTypes.h>
 
+G_BEGIN_DECLS
+
 typedef struct _IpcomOpStateMachine IpcomOpStateMachine;
 typedef struct _IpcomOpState		IpcomOpState;
 
@@ -25,5 +27,7 @@ extern IpcomOpStateMachine SM_CLNoti;	//Notification / connectionless
 
 //Initialize all StateMachines
 void IpcomOpStateMachineInit();
+
+G_END_DECLS
 
 #endif
