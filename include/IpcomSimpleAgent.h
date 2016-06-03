@@ -14,9 +14,6 @@ typedef IpcomOpContextId*			IpcomOpHandle;
 typedef IpcomConnection*			IpcomConnectionHandle;
 typedef gpointer					IpcomAgentSocket;
 typedef struct _IpcomAgent			IpcomAgent;
-
-//typedef IpcomServiceReturn 		(*IpcomAgentOnOpResponse)(IpcomAgent*,IpcomOpHandle,IpcomMessage,gpointer userdata);
-//typedef IpcomServiceReturn		(*IpcomAgentOnOpDestroyed)(IpcomAgent*,IpcomOpHandle,IpcomOpContextFinCode,gpointer userdata);
 typedef struct _AgentMsgHandlers	IpcomAgentMsgHandlers;
 typedef struct _AgentOpCallbacks	IpcomAgentOpCallbacks;
 struct _AgentOpCallbacks {
@@ -48,7 +45,7 @@ struct _IpcomAgent {
 
 /*****************
  * IpcomSimpleAgent
- * ***************/
+ *****************/
 typedef struct _IpcomSimpleAgent	IpcomSimpleAgent;
 typedef enum {
 	NOT_INIT_MODE = 0,

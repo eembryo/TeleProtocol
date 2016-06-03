@@ -1,0 +1,17 @@
+* HOW TO COMPILE *
+1. get whole source of wireshark
+2. extract it (let's call it ${WIRESHARK_ROOT})
+3. copy plugin source into ${WIRESHARK_ROOT}/plugins
+4. open ${WIRESHARK_ROOT}/CMakeLists.txt file
+5. append "ipcmd" to "set(PLUGIN_SRC_DIRS ...)" in the CMakeLists.txt
+6. make a build directory (for example, mkdir ${WIRESHARK_ROOT}/build)
+7. change directory to ${WIRESHARK_ROOT}/build
+8. type "cmake ${WIRESHARK_ROOT}"
+9. make (will take long time)
+10. You will get a compiled plugin (e.g ${WIRESHARK_ROOT}/build/run/ipcmd.so)
+
+* HOW TO APPLY *
+1. copy ipcmd.so into "${HOME}/.config/wireshark/plugins/"
+2. enable following line in ipcmd_dissector.lua if it was disabled
+	- ipcmd_pl_dt = DissectorTable.get("ipcmd_payload")
+2. run wireshark with lua_script (e.g wireshark -X lua_script:./ipcmd_dissector.lua dump.pcap)

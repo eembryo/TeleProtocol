@@ -1,0 +1,70 @@
+# ipcmd.cnf
+# IPCMD conformation file
+
+# $Id$
+
+#.MODULE_IMPORT
+
+#.EXPORTS
+
+#.PDU
+OpTelematicSettings-SetRequest
+OpTelematicSettings-Response
+OpPositionData-Response
+OpSubscriptionActivation-Response
+OpSubscriptionActivation-Notification
+OpServiceActivation-SetRequest
+OpServiceActivation-Response
+OpRescueStatus-Response
+OpRescueStatus-Notification
+OpUserPrivacySettings-SetRequest
+OpUserPrivacySettings-Response
+OpSendToCarConfirmation-SetRequest
+OpSendToCarConfirmation-Response
+OpTextMessage-SetRequest
+OpIHUSystemInfo-Response
+OpSendToCar-SetRequest
+OpGenericSettingSynch-Request
+OpGenericSettingSynch-SetRequest
+OpGenericSettingSynch-Response
+OpGenericSettingSynch-Notification
+OpSoHPackageUploaded-Notification
+OpSIMConnect-SetRequest
+OpSIMConnect-Response
+OpSIMConnectionStatus-Response
+OpSIMConnectionStatus-Notification
+OpConnectivityInhibitionStatus-SetRequest
+OpConnectivityInhibitionStatus-Response
+OpConnectivityInhibitionStatus-Notification
+OpFactoryDefaultRestore-SetRequest
+OpFactoryDefaultRestore-Response
+OpInternetGateway-SetRequest
+OpInternetGateway-Response
+OpPremiumAudio-SetRequest
+OpPremiumAudio-Response
+OpCallHandling-SetRequest
+OpTEM2Identification-Response
+OpDLCConnectedSignal-Response
+OpDeadReckonedPosition-Response
+OpGNSSPositionData-Response
+OpDeadReckoningRawData-Response
+OpCurrentJ2534Session-Notification
+OpCurrentDoIPState-Notification
+OpCurrentDoIPConnection-Notification
+
+#VccPduHeader
+
+#.FIELD_ATTR
+OpIHUSystemInfo-Response/softwareVersion    TYPE=FT_STRING
+OpIHUSystemInfo-Response/mapBaseVersion     TYPE=FT_STRING
+OpSendToCar-SetRequest/gpxFile              TYPE=FT_STRING
+OpTEM2Identification-Response/imei          TYPE=FT_STRING
+OpTEM2Identification-Response/serialNr      TYPE=FT_STRING
+
+#.NO_EMIT
+
+#.TYPE_RENAME
+
+#.FIELD_RENAME
+
+#.END

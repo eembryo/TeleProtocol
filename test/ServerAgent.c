@@ -72,6 +72,11 @@ ServerProccessMessage(IpcomAgent* agent, IpcomOpHandle handle, IpcomMessage *mes
 	DPRINT("Got message to process (OperationID=0x%.04x, SenderHandleID=0x%.08x, 0xOpType=%.02x\n",
 			IpcomMessageGetVCCPDUOperationID(mesg), IpcomMessageGetVCCPDUSenderHandleID(mesg), IpcomMessageGetVCCPDUOpType(mesg));
 
+	{
+	    gchar* addr_str[100];
+	    IpcomMessageCopyOriginInetAddressString(mesg, addr_str, 100);
+	    g_printf("address is %s:%d\n", addr_str, IpcomMessageGetOriginInetPort(mesg));
+	}
 	if (IpcomMessageGetVCCPDUOpType(mesg) == IPCOM_OPTYPE_REQUEST ||
 			IpcomMessageGetVCCPDUOpType(mesg) == IPCOM_OPTYPE_SETREQUEST) {
 		/// generate RESPONSE message

@@ -12,6 +12,8 @@ typedef struct _IpcomNetifcMonitor IpcomNetifcMonitor;
 
 struct _IpcomNetifcMonitor {
 	GHashTable*		hashIpcomNetIfcs;
+	GHashTable* 	hashIpv4BroadAddrCache;
+	/// GList* listIpv6BroadAddrCache;
 };
 
 typedef enum {
@@ -26,18 +28,21 @@ typedef enum {
 
 IpcomNetifcMonitor*	IpcomNetifcGetInstance();
 void				IpcomNetifcMonitorUpdate(IpcomNetifcMonitor *);
-GInetAddress*		IpcomNetifcMonitorQueryBroadcastAddress(IpcomNetifcMonitor*, guint8 inum);
 GInetAddress*		IpcomNetifcMonitorQueryBroadcastAddressWithSrc(IpcomNetifcMonitor*, const GInetAddress *addr);
 GInetAddress*		IpcomNetifcMonitorQueryIpv4PrefSrcForDest(IpcomNetifcMonitor*, const GInetAddress *target);
 gboolean			IpcomNetifcMonitorIsBroadcastAddress(IpcomNetifcMonitor*, const GInetAddress *addr);
 IpcomNetifcMonitorAddressType	IpcomNetifcMonitorQueryAddressType(IpcomNetifcMonitor*,const GInetAddress *addr);
-IpcomNetifcMonitorAddressType	IpcomNetifcMonitorQueryAddressType2(IpcomNetifcMonitor*,const GInetAddress *addr,guint8 ifnum);
 
-/* IpcomNetifMonitorGetAllBroadcastAddress
+/* IpcomNetifcMonitorGetAllIpv4Addr
  *
- * - need to free GList memory with g_list_free()
+ * - need to free returned value with g_list_free()
  */
-GList*				IpcomNetifMonitorGetAllBroadcastAddress(IpcomNetifcMonitor*);
+GList*              IpcomNetifcMonitorGetAllIpv4Addr(IpcomNetifcMonitor*);
+/* IpcomNetifcMonitorGetAllIpv4BroadAddr
+ *
+ * - need to free returned value with g_list_free()
+ */
+GList*				IpcomNetifcMonitorGetAllIpv4BroadAddr(IpcomNetifcMonitor*);
 
 G_END_DECLS
 

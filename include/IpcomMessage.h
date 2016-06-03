@@ -19,6 +19,7 @@
 
 
 #include <glib.h>
+#include <gio/gio.h>
 #include <ref_count.h>
 #include <IpcomTypes.h>
 
@@ -53,6 +54,7 @@ struct _IpcomMessage {
 	struct _VCCPDUHeader	*vccpdu_ptr;
 	gpointer				payload_ptr;
 	guint32					actual_size;	//the size of allocated memory for this message. It does not include the size of 'struct _IpcomMessage'
+    GSocketAddress*         origin_addr;    //originator of this message
 	guint32					mesg_length;
 	gchar					message[0];		//the start of raw message.
 };
@@ -95,6 +97,15 @@ static inline void 		IpcomMessageSetPayloadBuffer(IpcomMessage *mesg, gpointer p
 	mesg->payload_ptr = payload;
 	IpcomMessageSetPayloadLength(mesg, length);
 }
+
+/**
+ * - On receiving IP command message, IpcomTransport sets originator of the packet into IpcomMessage.
+ */
+void        IpcomMessageSetOriginSockAddress(IpcomMessage *mesg, GSocketAddress *paddr);
+//gchar*      IpcomMessageGetOriginInetAddressString(IpcomMessage *mesg);
+gboolean    IpcomMessageCopyOriginInetAddressString(IpcomMessage *mesg, gpointer buf, gsize buf_len);
+guint16     IpcomMessageGetOriginInetPort(IpcomMessage *mesg);
+
 gboolean IpcomMessageCopyToPayloadBuffer(IpcomMessage *mesg, gpointer src, guint32 length);
 
 static inline void IpcomMessageInitVCCPDUHeader(IpcomMessage *mesg,

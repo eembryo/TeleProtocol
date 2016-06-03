@@ -15,15 +15,18 @@
 
 typedef struct _IpcomIfcAddress IpcomIfcAddress;
 struct _IpcomIfcAddress {
-	gboolean		isprimary;
-	gchar*			pIfcName;
+	/// @pAddr: a unique address involved in the interface.
 	GInetAddress*	pAddr;
+	/// @pIfcName:	interface name such as "eth0", "eth0:0".
+	gchar*			pIfcName;
+	/// @pBroadAddr:	broadcast address. It may be duplicate address, if interface has addresses more than one.
 	GInetAddress*	pBroadAddr;
 };
 
 typedef struct _IpcomNetifc		IpcomNetifc;
 struct _IpcomNetifc {
 	GList*			listIfcIpv4Addrs;
+	//GList*		listIfcIpv6Addrs;
 	guint8			nIfcNum;
 };
 
@@ -32,64 +35,81 @@ static IpcomNetifcMonitor* pNetifcMonitor = NULL;
 static void
 _NetifcDump(IpcomNetifc* netifc)
 {
-	gchar*	str, str1;
-	GList* listIter;
-	struct _IpcomNetifcAddress* pNetifcAddr;
+	gchar*				str;
+	gchar*				str1;
+	GList* 				listIter;
+	IpcomIfcAddress* 	pIfcAddr;
 
 	DPRINT("\t Interface number: %d\n", netifc->nIfcNum);
 	if (netifc->listIfcIpv4Addrs) {
 		for (listIter = g_list_first(netifc->listIfcIpv4Addrs); listIter != NULL; listIter = g_list_next(listIter)) {
-			pNetifcAddr = (struct _IpcomNetifcAddress*)listIter->data;
-			str = g_inet_address_to_string(pNetifcAddr->pAddr);
-			if (pNetifcAddr->pBroadAddr) {
-				str1 = g_inet_address_to_string(pNetifcAddr->pBroadAddr);
-				DPRINT("\t\t[%s][%s] Address: %s, BroadcastAddress: %s", pNetifcAddr->pIfcName, pNetifcAddr->isprimary ? "PRI", "SEC", str, str1);
+			pIfcAddr = (IpcomIfcAddress*)listIter->data;
+			str = g_inet_address_to_string(pIfcAddr->pAddr);
+			if (pIfcAddr->pBroadAddr) {
+				str1 = g_inet_address_to_string(pIfcAddr->pBroadAddr);
+				DPRINT("\t\t[%s] Address: %s, BroadcastAddress: %s\n", pIfcAddr->pIfcName, str, str1);
 				g_free(str1);
 			} else {
-				DPRINT("\t\t[%s][%s] Address: %s", pNetifcAddr->pIfcName, pNetifcAddr->isprimary ? "PRI", "SEC", str);
+				DPRINT("\t\t[%s] Address: %s\n", pIfcAddr->pIfcName, str);
 			}
 			g_free(str);
 		}
 	}
 }
-
+/*
 static gboolean
 IpcomIfcAddressCompare(const IpcomIfcAddress* a, const IpcomIfcAddress* b)
 {
-	if (a->isprimary != b->isprimary || !g_inet_address_equal(a->pAddr, b->pAddr) || strcmp(a->pIfcName, b->pIfcName))
-		return FALSE;
-
-	if (a->pBroadAddr && b->pBroadAddr && g_inet_address_equal(a->pBroadAddr,b->pBroadAddr)) return TRUE;
-	else if (!a->pBroadAddr && !b->pBroadAddr) return TRUE;
-
-	return FALSE;
+	if (a->isprimary == b->isprimary &&
+			g_inet_address_equal(a->pAddr, b->pAddr) &&
+			((a->pBroadAddr && b->pBroadAddr) ? g_inet_address_equal(a->pBroadAddr,b->pBroadAddr) :
+					((!a->pBroadAddr && !b->pBroadAddr) ? TRUE : FALSE))
+	) return TRUE;
+	else return FALSE;
 }
-
+*/
 static IpcomIfcAddress*
-IpcomIfcAddressNew(const gchar* name, GInetAddress* uniAddr, GInetAddress* broadAddr, gboolean isPrimary)
+IpcomIfcAddressNew()
 {
-	IpcomIfcAddress* new = g_malloc0(sizeof(IpcomIfcAddress));
+	IpcomIfcAddress* new = g_malloc(sizeof(IpcomIfcAddress));
 	if (!new) return NULL;
 
-	new->isprimary = isPrimary;
-	new->pAddr = g_object_ref(uniAddr);
-	if (broadAddr)
-		new->pBroadAddr = g_object_ref(broadAddr);
-	else
-		new->pBroadAddr = NULL;
-	new->pIfcName = g_strdup(name);
+	new->pAddr = NULL;
+	new->pBroadAddr = NULL;
+	new->pIfcName = NULL;
 
 	return new;
 }
 
+static inline void
+IpcomIfcAddressSetAddress(IpcomIfcAddress* pIfcAddr, GInetAddress* pAddr)
+{
+	if (pIfcAddr->pAddr) g_object_unref(pIfcAddr->pAddr);
+	pIfcAddr->pAddr = pAddr ? g_object_ref(pAddr) : NULL;
+}
+
+static inline void
+IpcomIfcAddressSetBroadcast(IpcomIfcAddress* pIfcAddr, GInetAddress* broadAddr)
+{
+	if (pIfcAddr->pBroadAddr) g_object_unref(pIfcAddr->pBroadAddr);
+	pIfcAddr->pBroadAddr = broadAddr ? g_object_ref(broadAddr) : NULL;
+}
+
+static inline void
+IpcomIfcAddressSetName(IpcomIfcAddress* pIfcAddr, const gchar* name)
+{
+	if (pIfcAddr->pIfcName) g_free(pIfcAddr->pIfcName);
+	pIfcAddr->pIfcName = name ? g_strdup(name) : NULL;
+}
 static void
 IpcomIfcAddressDestroy(IpcomIfcAddress *addr)
 {
 	if (addr->pAddr) g_object_unref(addr->pAddr);
 	if (addr->pBroadAddr) g_object_unref(addr->pBroadAddr);
 	if (addr->pIfcName) g_free(addr->pIfcName);
-}
 
+	g_free(addr);
+}
 static IpcomNetifc*
 IpcomNetifcNew()
 {
@@ -101,7 +121,6 @@ IpcomNetifcNew()
 
 	return new;
 }
-
 static void
 IpcomNetifcDestroy(gpointer data)
 {
@@ -116,48 +135,112 @@ IpcomNetifcDestroy(gpointer data)
 	}
 	g_free(ifc);
 }
-
-
-static gboolean
-IpcomNetifcIsAddrExist(IpcomNetifc* netifc, const GInetAddress *pUnicatAddr)
+static IpcomIfcAddress*
+IpcomNetifcLookupAddress(IpcomNetifc* netifc, const GInetAddress *pAddr)
 {
-	GList*	iter;
+	GList*	listIter;
 
-	for (iter = g_list_first(netifc->listIfcIpv4Addrs); iter != NULL; iter = g_list_next(iter)) {
-		if (g_inet_address_equal((GInetAddress*)pUnicatAddr, ((IpcomIfcAddress*)iter->data)->pAddr)) {
-			return TRUE;
+	switch(g_inet_address_get_family((GInetAddress*)pAddr)) {
+	case G_SOCKET_FAMILY_IPV4:
+		for (listIter = g_list_first(netifc->listIfcIpv4Addrs); listIter != NULL; listIter = g_list_next(listIter)) {
+			if (g_inet_address_equal((GInetAddress*)pAddr, ((IpcomIfcAddress*)listIter->data)->pAddr)) {
+				return listIter->data;
+			}
 		}
+		break;
+	case G_SOCKET_FAMILY_IPV6:
+		DERROR("Ipv6 is not supported yet.\n");
+		break;
+	default:
+		DERROR("Only inet address is supported.\n");
+		break;
 	}
 
-	return FALSE;
+	return NULL;
 }
 
 static gboolean
-IpcomNetifcIsIfcAddrExist(IpcomNetifc* netifc, const IpcomIfcAddress *pIfcAddr)
+IpcomNetifcAddIfcAddress(IpcomNetifc* netifc, IpcomIfcAddress* pIfcAddr)
 {
-	GList*	iter;
+	IpcomIfcAddress* 	pOldIfcAddr;
+	GList**				ppList;
 
-	for (iter = g_list_first(netifc->listIfcIpv4Addrs); iter != NULL; iter = g_list_next(iter)) {
-		if (IpcomIfcAddressCompare(pIfcAddr, (IpcomIfcAddress*)iter->data))
-			return TRUE;
+	///check whether interface address with pIfcAddr->pAddr exists
+	g_assert(pIfcAddr->pAddr);
+	switch(g_inet_address_get_family(pIfcAddr->pAddr)) {
+	case G_SOCKET_FAMILY_IPV4:
+		ppList = &netifc->listIfcIpv4Addrs;
+		break;
+	case G_SOCKET_FAMILY_IPV6:
+		DERROR("Ipv6 is not supported yet.\n");
+		g_assert(FALSE);
+		break;
+	default:
+		DERROR("Only inet address is supported.\n");
+		g_assert(FALSE);
 	}
-}
-
-static gboolean
-IpcomNetifcAddIfcAddress(IpcomNetifc* netifc, const IpcomIfcAddress *pIfcAddr)
-{
-	IpcomIfcAddress* new;
-
-	if (IpcomNetifcIsIfcAddrExist(netifc, pIfcAddr)) {
-		return FALSE;
-	}
-
-	new = IpcomIfcAddressNew(pIfcAddr->pIfcName, pIfcAddr->pAddr, pIfcAddr->pBroadAddr, pIfcAddr->isprimary);
-	g_assert(new);
-
-	netifc->listIfcIpv4Addrs = g_list_append(netifc->listIfcIpv4Addrs, new);
+	pOldIfcAddr = IpcomNetifcLookupAddress(netifc, pIfcAddr->pAddr);
+	if (pOldIfcAddr) *ppList = g_list_remove(*ppList, pOldIfcAddr);
+	*ppList = g_list_append(*ppList, pIfcAddr);
 
 	return TRUE;
+}
+
+
+static guint
+GInetAddressHashFunc(gconstpointer key)
+{
+	GInetAddress*	pAddr = (GInetAddress*)key;
+	const guint8* 	pRawData = g_inet_address_to_bytes(pAddr);
+	guint			hashValue;
+
+	/// we consider last 4 bytes as hash value.
+	switch (g_inet_address_get_family(pAddr)) {
+	case G_SOCKET_FAMILY_IPV4:
+		memcpy(&hashValue, pRawData, 4);
+		break;
+	case G_SOCKET_FAMILY_IPV6:
+		memcpy(&hashValue, pRawData + 12, 4);
+		break;
+	default:
+		DERROR("Only Inet address is supported.\n");
+		g_assert(FALSE);
+	}
+
+	return hashValue;
+}
+
+
+/*************************************
+ * IpcomNetifcMonitor functions
+ *************************************/
+static void
+IpcomNetifcMonitorClearBroadAddrCache(IpcomNetifcMonitor* monitor)
+{
+	g_hash_table_remove_all(monitor->hashIpv4BroadAddrCache);
+}
+
+static void
+IpcomNetifcMonitorUpdateBroadAddrCache(IpcomNetifcMonitor* monitor)
+{
+	GHashTableIter	iter;
+	gpointer 		key, value;
+	GList*			listIter;
+	GInetAddress	*pBroadAddr;
+
+	IpcomNetifcMonitorClearBroadAddrCache(monitor);
+
+	g_hash_table_iter_init (&iter, monitor->hashIpcomNetIfcs);
+	while (g_hash_table_iter_next (&iter, &key, &value)) {
+		for (listIter = g_list_first(((IpcomNetifc*)value)->listIfcIpv4Addrs); listIter != NULL; listIter = g_list_next(listIter)) {
+			pBroadAddr = ((IpcomIfcAddress*)listIter->data)->pBroadAddr;
+			if (!pBroadAddr) continue;
+			else if (!g_hash_table_contains(monitor->hashIpv4BroadAddrCache, pBroadAddr)) {
+				g_object_ref(pBroadAddr);
+				g_hash_table_insert(monitor->hashIpv4BroadAddrCache, pBroadAddr, NULL);
+			}
+		}
+	}
 }
 
 IpcomNetifcMonitor*
@@ -167,7 +250,7 @@ IpcomNetifcMonitorNew()
 
 	pNetifcMonitor = g_malloc(sizeof(IpcomNetifcMonitor));
 	pNetifcMonitor->hashIpcomNetIfcs = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, IpcomNetifcDestroy);
-
+	pNetifcMonitor->hashIpv4BroadAddrCache = g_hash_table_new_full(GInetAddressHashFunc, (GEqualFunc)g_inet_address_equal , g_object_unref, NULL);
 	IpcomNetifcMonitorUpdate(pNetifcMonitor);
 
 	return pNetifcMonitor;
@@ -205,7 +288,6 @@ IpcomNetifcMonitorUpdate(IpcomNetifcMonitor *monitor)
 	struct ifaddrmsg*	ifAddrMsg;
 	gchar msgBuf[NETLINK_BUFSIZE] = {0};
 	gchar reply[NETLINK_BUFSIZE] = {0};
-	IpcomNetifc*		pNetifc;
 
 	g_hash_table_remove_all(pNetifcMonitor->hashIpcomNetIfcs);
 
@@ -231,8 +313,10 @@ IpcomNetifcMonitorUpdate(IpcomNetifcMonitor *monitor)
 
 	{
 		int nll, rtml;
-		struct rtattr	*rtap;
-		GInetAddress	*addr;
+		struct rtattr*		rtap;
+		GInetAddress*		addr;
+		IpcomNetifc*		pNetifc;
+		IpcomIfcAddress*	pThisIfcAddress;
 
 		/* Receive response */
 		nll = recv(sock, reply, sizeof(reply), 0);
@@ -250,9 +334,10 @@ IpcomNetifcMonitorUpdate(IpcomNetifcMonitor *monitor)
 				pNetifc->nIfcNum = ifAddrMsg->ifa_index;
 				g_hash_table_insert(monitor->hashIpcomNetIfcs, GINT_TO_POINTER(ifAddrMsg->ifa_index), pNetifc);
 			}
+			pThisIfcAddress = IpcomIfcAddressNew();
 
 			for (rtap = IFA_RTA(ifAddrMsg); RTA_OK(rtap, rtml); rtap = RTA_NEXT(rtap, rtml)) {
-				DPRINT("rta_type = %d\n", rtap->rta_type);
+				//DPRINT("rta_type = %d\n", rtap->rta_type);
 				if (rtap->rta_type == IFA_ADDRESS) {
 					addr =  g_inet_address_new_from_bytes(RTA_DATA(rtap), G_SOCKET_FAMILY_IPV4);
 #if DEBUG
@@ -263,20 +348,25 @@ IpcomNetifcMonitorUpdate(IpcomNetifcMonitor *monitor)
 						g_free(addrstr);
 					}
 #endif
-					IpcomNetifcAddAddress(pNetifc, addr);
+					IpcomIfcAddressSetAddress(pThisIfcAddress, addr);
 					g_object_unref(addr);
 				}
 				else if (rtap->rta_type == IFA_BROADCAST) {
-					pNetifc->pIfcBroadAddr = g_inet_address_new_from_bytes(RTA_DATA(rtap), G_SOCKET_FAMILY_IPV4);
+					addr = g_inet_address_new_from_bytes(RTA_DATA(rtap), G_SOCKET_FAMILY_IPV4);
+					IpcomIfcAddressSetBroadcast(pThisIfcAddress, addr);
+					g_object_unref(addr);
 				}
 				else if (rtap->rta_type == IFA_LABEL) {
-					pNetifc->pIfcName = g_strdup((gchar *)RTA_DATA(rtap));
+					IpcomIfcAddressSetName(pThisIfcAddress, (gchar *)RTA_DATA(rtap));
 				}
-			}
+			} // for(...)
+			/// register pThisIfcAddress to pNetifc
+			IpcomNetifcAddIfcAddress(pNetifc, pThisIfcAddress);
 		}
 	}
 	close (sock);
 
+	IpcomNetifcMonitorUpdateBroadAddrCache(monitor);
 	IpcomNetifcMonitorDump(monitor);
 }
 
@@ -290,11 +380,10 @@ IpcomNetifcMonitorQueryNetifcWithAddr(IpcomNetifcMonitor* monitor, const GInetAd
 	g_hash_table_iter_init (&iter, monitor->hashIpcomNetIfcs);
 	while (g_hash_table_iter_next (&iter, &key, &value)) {
 		pNetifc = (IpcomNetifc*)value;
-		if (IpcomNetifcIsAddrExist(pNetifc, target)) {
+		if (IpcomNetifcLookupAddress(pNetifc, target)) {
 			return pNetifc->nIfcNum;
 		}
 	}
-
 	return 0;
 }
 
@@ -326,16 +415,15 @@ IpcomNetifcMonitorQueryPrefSrcForDest(IpcomNetifcMonitor* monitor, const GInetAd
 gboolean
 IpcomNetifcMonitorIsBroadcastAddress(IpcomNetifcMonitor* monitor, const GInetAddress *addr)
 {
-	GHashTableIter iter;
-	gpointer key, value;
-	GInetAddress*	subject;
-
-	g_hash_table_iter_init (&iter, monitor->hashIpcomNetIfcs);
-	while (g_hash_table_iter_next (&iter, &key, &value)) {
-		subject = ((IpcomNetifc*)value)->pIfcBroadAddr;
-		if (g_inet_address_equal((GInetAddress*)addr, subject)) {
-			return TRUE;
-		}
+	switch(g_inet_address_get_family((GInetAddress*)addr)) {
+	case G_SOCKET_FAMILY_IPV4:
+		return g_hash_table_contains (monitor->hashIpv4BroadAddrCache, addr);
+	case G_SOCKET_FAMILY_IPV6:
+		//return g_hash_table_contains (monitor->hashIpv6BroadAddrCache, addr);
+		break;
+	default:
+		DERROR("Only inet address is supported\n");
+		g_assert(FALSE);
 	}
 
 	return FALSE;
@@ -344,82 +432,79 @@ IpcomNetifcMonitorIsBroadcastAddress(IpcomNetifcMonitor* monitor, const GInetAdd
 GInetAddress*
 IpcomNetifcMonitorQueryBroadcastAddressWithSrc(IpcomNetifcMonitor* monitor, const GInetAddress *addr)
 {
-	int num = IpcomNetifcMonitorQueryNetifcWithAddr(monitor, addr);
-	IpcomNetifc* pNetifc;
-
-	if (!num) {
-		gchar *str = g_inet_address_to_string((GInetAddress*)addr);
-		DWARN("Failed to find address : %s \n", str);
-		g_free(str);
-		return NULL;
-	}
-
-	pNetifc = (IpcomNetifc *)g_hash_table_lookup(monitor->hashIpcomNetIfcs, GINT_TO_POINTER(num));
-	g_assert(pNetifc);
-
-	return pNetifc->pIfcBroadAddr;
-}
-
-GList*
-IpcomNetifMonitorGetAllBroadcastAddress(IpcomNetifcMonitor* monitor)
-{
-	GList*	ret_list = NULL;
-	GInetAddress*	brAddr;
-	GHashTableIter iter;
-	gpointer key, value;
+	GHashTableIter 		iter;
+	gpointer 			key, value;
+	IpcomNetifc* 		pNetifc;
+	IpcomIfcAddress*	pIfcAddr;
 
 	g_hash_table_iter_init (&iter, monitor->hashIpcomNetIfcs);
 	while (g_hash_table_iter_next (&iter, &key, &value)) {
-		brAddr = ((IpcomNetifc*)value)->pIfcBroadAddr;
-		if (brAddr)
-			ret_list = g_list_append(ret_list, brAddr);
+		pNetifc = (IpcomNetifc*)value;
+		pIfcAddr = IpcomNetifcLookupAddress(pNetifc, addr);
+		return pIfcAddr->pBroadAddr;
 	}
 
-	return ret_list;
-}
-
-static inline IpcomNetifcMonitorAddressType
-_QueryAddressType(IpcomNetifcMonitor* monitor,const GInetAddress *addr, IpcomNetifc* netifc)
-{
-	switch(g_inet_address_get_family ((GInetAddress*)addr)) {
-	case G_SOCKET_FAMILY_IPV4:
-		if (netifc->pIfcBroadAddr && g_inet_address_equal((GInetAddress*)addr, netifc->pIfcBroadAddr)) return ADDRESSTYPE_IPV4_BROADCAST;
-		else if (IpcomNetifcIsAddrExist(netifc, addr)) return ADDRESSTYPE_IPV4_UNICAST;
-		break;
-	case G_SOCKET_FAMILY_IPV6:
-		DWARN("Not implemented yet.");
-		break;
-	default :
-		break;
-	}
-
-	return ADDRESSTYPE_UNKNOWN;
+	return NULL;
 }
 
 IpcomNetifcMonitorAddressType
 IpcomNetifcMonitorQueryAddressType(IpcomNetifcMonitor* monitor,const GInetAddress *addr)
 {
-	GHashTableIter iter;
+	GHashTableIter hashIter;
 	gpointer key, value;
-	IpcomNetifcMonitorAddressType ret = ADDRESSTYPE_UNKNOWN;
 
-	g_hash_table_iter_init (&iter, monitor->hashIpcomNetIfcs);
-	while (g_hash_table_iter_next (&iter, &key, &value)) {
-		ret = _QueryAddressType(monitor, addr, (IpcomNetifc*)value);
-		if (ret != ADDRESSTYPE_UNKNOWN) break;
+	switch(g_inet_address_get_family((GInetAddress*)addr)) {
+	case G_SOCKET_FAMILY_IPV4:
+		if (g_inet_address_get_is_any((GInetAddress*)addr)) return ADDRESSTYPE_IPV4_ANY;
+		else if (IpcomNetifcMonitorIsBroadcastAddress(monitor, addr)) return ADDRESSTYPE_IPV4_BROADCAST;
+		else {
+			g_hash_table_iter_init (&hashIter, monitor->hashIpcomNetIfcs);
+			while (g_hash_table_iter_next (&hashIter, &key, &value)) {
+				if (IpcomNetifcLookupAddress((IpcomNetifc*)value, addr)) {
+					return ADDRESSTYPE_IPV4_UNICAST;
+				}
+			}
+		}
+		break;
+	case G_SOCKET_FAMILY_IPV6:
+		break;
+	default:
+		break;
 	}
-
-	return ret;
+	return ADDRESSTYPE_UNKNOWN;
 }
 
-IpcomNetifcMonitorAddressType
-IpcomNetifcMonitorQueryAddressType2(IpcomNetifcMonitor* monitor,const GInetAddress *addr,guint8 ifnum)
+GList*
+IpcomNetifcMonitorGetAllIpv4BroadAddr(IpcomNetifcMonitor* monitor)
 {
-	IpcomNetifc* pNetifc;
+	GList*	list = NULL;
+	GHashTableIter	iter;
+	gpointer 		key;
 
-	pNetifc = g_hash_table_lookup(monitor->hashIpcomNetIfcs, GINT_TO_POINTER(ifnum));
+	g_hash_table_iter_init (&iter, monitor->hashIpv4BroadAddrCache);
 
-	if (!pNetifc) return ADDRESSTYPE_UNKNOWN;
+	while (g_hash_table_iter_next (&iter, &key, NULL)) {
+		list = g_list_append(list, (GInetAddress*)key);
+	}
+	return list;
+}
 
-	return _QueryAddressType(monitor, addr, pNetifc);
+GList*
+IpcomNetifcMonitorGetAllIpv4Addr(IpcomNetifcMonitor* monitor)
+{
+    GHashTableIter  iter;
+    gpointer        key, value;
+    GList*          listIter = NULL;
+    GList*          retList = NULL;
+
+    IpcomNetifcMonitorClearBroadAddrCache(monitor);
+
+    g_hash_table_iter_init (&iter, monitor->hashIpcomNetIfcs);
+    while (g_hash_table_iter_next (&iter, &key, &value)) {
+        for (listIter = g_list_first(((IpcomNetifc*)value)->listIfcIpv4Addrs); listIter != NULL; listIter = g_list_next(listIter)) {
+            retList = g_list_append(retList, ((IpcomIfcAddress*)listIter->data)->pAddr);
+        }
+    }
+
+    return retList;
 }

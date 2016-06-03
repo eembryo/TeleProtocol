@@ -117,6 +117,7 @@ _UDPv4Receive(IpcomTransport *transport, GSocket *socket)
 	pConn = NULL;
 	pLocalSockAddr = g_socket_address_new_from_native((gpointer)&mLocalSockAddr, sizeof(struct sockaddr_in));
 	pRemoteSockAddr = g_socket_address_new_from_native((gpointer)&mRemoteSockAddr, sizeof(struct sockaddr_in));
+
 #ifdef DEBUG
 	{
 		gchar*	dst = g_inet_address_to_string(g_inet_socket_address_get_address(G_INET_SOCKET_ADDRESS(pLocalSockAddr)));
@@ -164,6 +165,9 @@ _UDPv4Receive(IpcomTransport *transport, GSocket *socket)
 		DWARN("Receive a packet with wrong destination.\n");
 		goto _UDPv4Receive_failed;
 	}
+
+	/// set remote address into IpcomMessage
+    IpcomMessageSetOriginSockAddress(newMesg, pRemoteSockAddr);
 
 	if (pConn) IpcomConnectionPushIncomingMessage(pConn, newMesg);
 	else DPRINT("Discarding the packet.\n");
@@ -378,7 +382,7 @@ _UDPv4Broadcast(IpcomTransport *transport, guint16 dport, IpcomMessage *mesg)
 
 	/// If socket is bound to anycast address, we broadcast for each broadcast address.
 	if (g_inet_address_equal(pBoundInetAddress, IPV4_ANYCAST_ADDRESS)) {
-		listBroadcastAddrs = IpcomNetifMonitorGetAllBroadcastAddress(IpcomNetifcGetInstance());
+		listBroadcastAddrs = IpcomNetifcMonitorGetAllIpv4BroadAddr(IpcomNetifcGetInstance());
 		if (!listBroadcastAddrs) goto _UDPv4Broadcast_failed;
 
 		for (iter = g_list_first(listBroadcastAddrs); iter != NULL; iter = g_list_next(iter)) {

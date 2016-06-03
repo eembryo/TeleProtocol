@@ -1,0 +1,885 @@
+-- IP Command Bus Message
+--
+-- Infotainment IP bus
+--
+-- Version 1.0
+--
+-- Changes : Draft
+--
+-- Version 2.0
+--
+-- Changes : ServiceActivation Added
+--
+-- Version 3.0
+--
+-- Changes : Modify Connectivity Inhibition
+--
+
+IPCMD-PROTOCOL DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+--========================================================================
+--
+-- VCC PDU Header
+--
+--========================================================================
+
+VccPduHeader ::= SEQUENCE{
+    serviceId INTEGER(0..65535),
+    operationId INTEGER(0..65535),
+    msgLength INTEGER(0..4294967295), --note that the length includes everything in the message following this field.
+    senderHandle INTEGER(0..4294967295),
+    protocolVersion INTEGER(0..255),
+    operationType INTEGER(0..255),
+    dataType INTEGER(0..255), -- reserved area for future useage
+    reservedII INTEGER(0..255) -- reserved area for future useage
+}
+
+--========================================================================
+--
+-- Error codes
+--
+--========================================================================
+
+OpGeneric-Error ::= SEQUENCE {
+    errorCode IPCommandErrorCode,
+    errorInfo INTEGER(0..65535) OPTIONAL
+}
+
+IPCommandErrorCode ::= ENUMERATED {
+    --Generic errors
+    notOk (0), -- This error has no extra information, so the second byte is not read.
+    serviceIdNotAvailable (1), -- ErrorInfo = <serviceId>
+    operationIdNotAvailable (2), -- ErrorInfo = <operationId>
+    opTypeNotAvailable (3), -- ErrorInfo = <operation type>
+    invalidProtocolVersion (4), -- ErrorInfo = <supported protocol version>
+    segmentationError (5), -- TBD unclear
+    invalidLength (6),
+    applicationError (7),
+    timeout (8),
+    busy (9), -- busy
+
+    --Specific errors in the range 0x20-0x3f (32d-63d)
+    incorrectState (32), -- Operation or OpType not valid in the current state 
+    asn1decodeError (35), -- asn.1 could not be decoded. Possible for all operations.
+    parameterInvalid (36) -- Possible for all operations.
+}
+
+--========================================================================
+--
+-- Shared Elements
+--
+--========================================================================
+
+--A request for a value should in the normal case not require any extra data
+OpGeneric-Request ::= NULL
+
+--A set request with no supplied parameter
+OpGeneric-SetRequestNoReturn ::= NULL
+
+--A response with no supplied parameter
+OpGeneric-Response ::= NULL
+
+DateTime ::= SEQUENCE {
+    year INTEGER(2000..2127),
+    month INTEGER(1..12),
+    day INTEGER(1..31),
+    hour INTEGER(0..23),
+    minute INTEGER(0..59),
+    second INTEGER(0..59)
+}
+
+-- Used to indicate a source for an SMS or Voice call.
+SourceStatus ::= ENUMERATED {
+    unidentified (0),
+    trusted (1),
+    callCenter (2),
+    psap (3),
+    outgoing (4)
+}
+
+OnOffStatus ::= ENUMERATED {
+    off (0),
+    on (1),
+    unknown (2)
+}
+
+-- Used to indicate the status for some security(theft-related) OnCall services
+SecurityStatus ::= ENUMERATED {
+    idle (0), -- Service is in an idle state
+    standby (1), -- Service is active but not requiring GPS positions from IHU
+    active (2), -- Service is active and requires GPS position from IHU
+    activeStandalone(3)
+}
+
+-- Generic status
+GenericOkStatus ::= ENUMERATED {
+    unknown (0),
+    ok (1),
+    notOk (2)
+}
+
+-- Used to indicate the status of a audio i/o(mic/speaker) system
+AudioStatus ::= SEQUENCE {
+    micStatus GenericOkStatus,
+    speakerStatus GenericOkStatus
+}
+
+UUID ::= SEQUENCE {
+    uuid PrintableString(SIZE(1..36)) -- Constrained to an UUID
+}
+
+PartIdentifier ::= SEQUENCE {
+    partID PrintableString(SIZE(1..40)) --Software part identifier, e.g. KDP part number
+}
+
+
+XCallID ::= ENUMERATED {
+   sdnCall   (0),
+   eCall     (1),
+   bCall     (2),
+   iCall     (3)
+} 
+
+--========================================================================
+--
+-- Service: Telematics (0xA1)
+--
+--========================================================================
+
+--=================================================
+-- OperationID: TelematicSettings (0x0104)
+--=================================================
+
+OpTelematicSettings-SetRequest ::= SEQUENCE {
+    telemSetting TelemSettings OPTIONAL --element is optional in case there will be more elements in the future. Then it��ll be possible to set only one of the elements.
+}
+
+OpTelematicSettings-Response ::= SEQUENCE {
+    telemSetting TelemSettings
+}
+
+TelemSettings ::= SEQUENCE {
+    keylockEnabled BOOLEAN -- OnCall/SOS button keylock enabled True or False.
+}
+
+--=================================================
+-- OperationID: PositionData (0x0105)
+--=================================================
+
+OpPositionData-Response ::= SEQUENCE {
+    position SimpleVehiclePosition
+}
+
+SimpleVehiclePosition ::= CHOICE {
+    noValidData NULL, --Used if the server can not provide a position of sufficient quality
+    wgs84 WGS84SimplePositionData
+}
+
+WGS84SimplePositionData ::= SEQUENCE {
+    longLat CoordinatesLongLat,
+    fixTime DateTime, --GPS time received with the fix
+    fixType GnssFixType, --Specifies the current GNSS fix, not regarding DR
+    drType DeadReckoningType
+}
+
+--=================================================
+-- OperationID: SubscriptionActivation (0x0107)
+--=================================================
+
+OpSubscriptionActivation-Response ::= SEQUENCE {
+    status ActivationStatus
+}
+
+OpSubscriptionActivation-Notification ::= SEQUENCE {
+    status ActivationStatus
+}
+
+ActivationStatus ::= ENUMERATED {
+    deactivated (0), -- No telematic functionality. Modem is off.
+    activated-provisioned (1), -- Has an active subscription
+    activated-unprovisioned (3), -- Provisioning possible. Wakeup cycles as for provisioned state
+    remote-provisioning-ongoing (4), -- Provisioning ongoing, started from remote \
+    provisioning-ongoing (5) -- Provisioning ongoing, started from vehicle
+}
+
+--================================================= 
+-- OperationID: ServiceActivation (0x0108) 
+--================================================= 
+
+OpServiceActivation-SetRequest ::= SEQUENCE {
+    -- Desired service 
+    service OnCallService, -- Set to Information Call (I-Call) 
+    -- On or Off 
+    action OnOffSetting
+}
+
+OnCallService ::= ENUMERATED {
+    informationCall (2) --- Set to Information Call 
+} 
+
+OnOffSetting ::= ENUMERATED {
+    off (0), 
+    on (1) 
+} 
+
+OpServiceActivation-Response ::= SEQUENCE { 
+    --Does not need to contain any data. Status is notified in RescueStatus 0x010A
+    --However at least one parameter must be inserted for the code to compile, so a constant is added 
+    responseOk NULL
+}
+
+--=================================================
+-- OperationID: RescueStatus (0x010A)
+--=================================================
+
+OpRescueStatus-Response ::= SEQUENCE {
+    eCallStatus CallStatus,
+    bCallStatus CallStatus,
+    iCallStatus CallStatus,
+    sdnStatus   CallStatus,
+    backupAudioStatus GenericOkStatus -- indicates the backup audio system status in TEM2
+}
+
+OpRescueStatus-Notification ::= SEQUENCE {
+    eCallStatus CallStatus,
+    bCallStatus CallStatus,
+    iCallStatus CallStatus,
+    sdnStatus   CallStatus,
+    backupAudioStatus GenericOkStatus -- indicates the backup audio system status in TEM2
+}
+
+CallStatus ::= SEQUENCE {
+    status RescueStatus,
+    callId XCallID, -- Defined in Shared elements
+    voiceStatus VoiceStatus, --The voice call status
+    voiceSource SourceStatus, -- Defined in Shared elements
+    messageStatus MessageStatus, --The SMS send status
+    buttonStatus ButtonStatus, --The button (health?) status
+    psapConfirmStatus PSAPStatus, --Used to instruct IHU to get a confirmation from the user before calling the PSAP
+    sbStatus StandbyStatus
+}
+
+RescueStatus ::= ENUMERATED {
+    disabled (0),
+    notActive (1),
+    serviceNotAvailable (2),
+    active (3),
+    terminated (4)
+}
+
+ButtonStatus ::= ENUMERATED {
+    disabled (0), -- The H/W Button for I-Call is disabled in TEM2. The S/W Button for I-Call is enabled in IHU
+    pressed (1),
+    released (2), -- To be used in SPA
+    allReleased (3)
+}
+
+VoiceStatus ::= ENUMERATED {
+    noConnection (0),
+    connectingCSC (1),
+    connectingPSAP (2),
+    connectedCSC (3),
+    connectedPSAP (4),
+    incomingCall (5),
+    connectedCall (6),
+    connectedIncoming (7)
+}
+
+MessageStatus ::= ENUMERATED {
+    notSent (0),
+    sending (1),
+    sent (2),
+    ackUndefined (3),
+    ackDefined (4)
+}
+
+PSAPStatus ::= ENUMERATED {
+    confirmRequired (0),
+    confirmNotRequired (1)
+}
+
+StandbyStatus ::= ENUMERATED {
+    notActive (0), -- Default or no standby status
+    active (1),   -- Start standby status
+    cancel (2)   -- Cancel standby status
+}
+
+--================================================= 
+-- OperationID: UserPrivacySettings (0x010C)
+--=================================================
+
+OpUserPrivacySettings-SetRequest ::= SEQUENCE {
+    userPrivacySetting UserPrivacySettings
+}
+
+OpUserPrivacySettings-Response ::= SEQUENCE {
+    userPrivacySetting UserPrivacySettings
+}
+
+UserPrivacySettings ::= SEQUENCE {
+    carStatUploadEn BOOLEAN, -- Upload Car status, enabled flag 
+    locationServicesEn BOOLEAN, -- Upload position, enabled flag
+    carLocatorStatUploadEn BOOLEAN, -- Car Locator, enabled flag
+    journalLogUploadEn BOOLEAN, -- Journal Log, enabled flag
+    simConnectEn BOOLEAN, -- Enable disable SIM, enabled flag
+    remoteStatusUploadEn BOOLEAN -- Remote Startup, enabled flag
+}
+
+--=================================================
+-- OperationID: SendToCarConfirmation (0x010E)
+--=================================================
+
+OpSendToCarConfirmation-SetRequest ::= SEQUENCE {
+    confirmation SendToCarConfirmation,
+    confirmedId SendToCarId
+}
+
+OpSendToCarConfirmation-Response ::= SEQUENCE {
+    confirmation SendToCarConfirmation,
+    confirmedId SendToCarId
+}
+
+SendToCarId ::= INTEGER(0..4294967295)
+
+SendToCarConfirmation ::= ENUMERATED{
+    --value 0 is reserved
+    addedAsDestination (0),
+    addedAsWaypoint (1),
+    rejected (2),
+    desinationOutsideOfMapData (3),
+    errorWhenAdding (4)
+}
+
+--=================================================
+-- OperationID: TextMessage (0x0106)
+--=================================================
+
+OpTextMessage-SetRequest ::= SEQUENCE {
+    sourceStatus SourceStatus, -- Defined in shared elements
+    source PrintableString(SIZE(1..30)) OPTIONAL, -- Text to be displayed. Typical "Customer Service Center".
+    text PrintableString(SIZE(1..140)) -- Message content
+}
+
+--=================================================
+-- OperationID: IHUSystemInfo (0x010B)
+--=================================================
+
+OpIHUSystemInfo-Response ::= SEQUENCE {
+    softwareVersion OCTET STRING(SIZE(0..20)),-- Volvo article number in ascii text
+    mapBaseVersion OCTET STRING(SIZE(0..20)), -- Ascii text. For SPA
+    mapIncrement INTEGER(0..255), -- For SPA SoH signals
+    typeOfPackage INTEGER(0..255),
+    failedFetchBooking INTEGER(0..65535),
+    failedServiceIP INTEGER(0..65535)
+}
+
+--=================================================
+-- OperationID: SendToCar (0x010D)
+--=================================================
+
+OpSendToCar-SetRequest ::= SEQUENCE {
+    requestId SendToCarId, --ID of this request. IHU shall respond with same ID
+    longLat CoordinatesLongLat, --POI coordinates
+    name PrintableString(SIZE(0..30)), --POI Name
+    description PrintableString(SIZE(0..100)),--POI description
+    gpxFile OCTET STRING(SIZE(0..1048575)) -- Possible future extension.
+}
+
+--=================================================
+-- OperationID: GenericSettingSynch (0x0114)
+--=================================================
+
+OpGenericSettingSynch-Request ::= SEQUENCE {
+    time DateTime,
+    settingIDs SEQUENCE SIZE(0..50) OF INTEGER(0..65535)
+}
+
+OpGenericSettingSynch-SetRequest ::= SEQUENCE {
+    time DateTime,
+    settings SEQUENCE SIZE(0..50) OF Setting
+}
+
+OpGenericSettingSynch-Response ::= SEQUENCE {
+    time DateTime,
+    settings SEQUENCE SIZE(0..50) OF Setting
+}
+
+OpGenericSettingSynch-Notification ::= SEQUENCE {
+    time DateTime,
+    settings SEQUENCE SIZE(0..50) OF Setting
+}
+
+Setting ::= SEQUENCE {
+    id INTEGER(0..65535),
+    sType SettingType,
+    length INTEGER(0..65535),
+    value OCTET STRING(SIZE(0..1023))
+}
+
+SettingType ::= ENUMERATED {
+    setting (0),
+    error (1)
+}
+
+--=================================================
+-- OperationID: SoHPackageUploaded (0x0113)
+--=================================================
+
+OpSoHPackageUploaded-Notification ::= SEQUENCE {
+    packetID PrintableString(SIZE(0..40)),
+    result GenericOkStatus
+}
+
+
+--========================================================================
+--
+-- Service: Connectivity (0xA3)
+--
+--========================================================================
+
+
+--=================================================
+-- OperationID: SIMConnect (0x0305)
+--=================================================
+
+OpSIMConnect-SetRequest ::= SEQUENCE {
+    --Turn the router On or Off
+    onOff OnOffSetting --Defined in Shared Elements
+}
+
+OpSIMConnect-Response ::= SEQUENCE {
+    --Current setting
+    onOff OnOffSetting --Defined in Shared Elements
+}
+
+--=================================================
+-- OperationID: SIMConnectionStatus (0x0306)
+--=================================================
+
+OpSIMConnectionStatus-Response ::= SEQUENCE {
+    --Current setting
+    status SIMConnectionStatus,
+    technology WirelessTechnology,
+    sosStatus SosStatus 
+}
+
+OpSIMConnectionStatus-Notification ::= SEQUENCE {
+    --Current setting
+    status SIMConnectionStatus,
+    technology WirelessTechnology,
+    sosStatus SosStatus 
+}
+
+SIMConnectionStatus ::= ENUMERATED {
+    connectedHome (0), --Connected to home network
+    connectedRoaming (1), --Connected to a roaming network
+    connecting (2), --Trying to connect
+    disconnected (3), --Not connected, not trying to connect
+    prohibited (4) --Not allowed to connect, due to e.g. roaming restrictions
+}
+
+WirelessTechnology ::= ENUMERATED {
+    unknown (0), --
+    gprs (1), --
+    edge (2), --
+    umts (10), --Standard 3G 380kbps
+    hsdpa (11),
+    hsupa (12),
+    lte (30)
+}
+
+SosStatus ::= ENUMERATED {
+    unknown          (0),   --SOS system is unknown (idle) service
+    limited          (1),   --SOS system is limited service
+    nonAvailable     (2),   --SOS system is not available service
+    available        (3)    --SOS system is available service
+} 
+
+--=================================================
+-- OperationID: ConnectivityInhibition (0x03FF)
+--=================================================
+
+OpConnectivityInhibitionStatus-SetRequest::= SEQUENCE {
+    connectivityInhibitionResult BOOLEAN -- Return the result. TRUE means OK, FALSE means Not OK
+}
+
+OpConnectivityInhibitionStatus-Response ::= SEQUENCE {
+    connectivityInhibitionResult BOOLEAN -- Return the result. TRUE means OK, FALSE means Not OK 
+} 
+OpConnectivityInhibitionStatus-Notification ::= SEQUENCE {
+    connectivityInhibitionResult BOOLEAN -- Return the result. TRUE means OK, FALSE means Not OK
+}
+
+--=================================================
+-- OperationID: FactoryDefaultRestore (0x030E)
+--=================================================
+OpFactoryDefaultRestore-SetRequest ::= SEQUENCE {
+    setRestoration BOOLEAN
+}
+
+OpFactoryDefaultRestore-Response ::= SEQUENCE {
+    restorationResult BOOLEAN -- Return the result. TRUE means OK, FALSE means Not OK
+}
+
+--=================================================
+-- OperationID: InternetGateway (0x0308)
+--=================================================
+
+OpInternetGateway-SetRequest ::= SEQUENCE {
+    internetGateway Ecu
+}
+
+OpInternetGateway-Response ::= SEQUENCE {
+    internetGateway Ecu
+}
+
+Ecu ::= ENUMERATED {
+    none (0), -- No ecu is acting as gateway
+    ihu (1),
+    tem2 (2)
+}
+
+
+--========================================================================
+--
+-- Service: Common Phone/Telematics (0xA7)
+--
+--========================================================================
+
+--=================================================
+-- OperationID: PremiumAudio (0x0702)
+--=================================================
+
+OpPremiumAudio-SetRequest ::= SEQUENCE {
+    isRequested BOOLEAN
+}
+
+OpPremiumAudio-Response ::= SEQUENCE {
+    premiumAudioStatus AudioStatus -- Defined in Shared Elements
+}
+
+--=================================================
+-- OperationID: CallHandling (0x0703)
+--=================================================
+
+OpCallHandling-SetRequest ::= SEQUENCE {
+    action AssistCallAction,
+    callId XCallID  -- Defined in Shared elements
+                    --If omitted with action=hangupCall, all ongoing calls will be hung up.
+}
+
+AssistCallAction ::= ENUMERATED {
+    acceptCall (0), -- Used to accept a incoming call.
+    hangupCall (1) -- Used to decline a incoming call and to hangup an ongoing call.
+}
+
+
+--========================================================================
+--
+-- Service: Common All (0xA8)
+--
+--========================================================================
+
+--=================================================
+-- OperationID: TEM2Identification (0x0801)
+--=================================================
+
+OpTEM2Identification-Response ::= SEQUENCE {
+    imei OCTET STRING(SIZE (15)), --For display to user (required in some countries)
+    wifiMac MacAddress OPTIONAL, --Is this needed? 
+    serialNr OCTET STRING(SIZE (15)) --TEM2 serial number. Used by infotainment security.
+}
+
+MacAddress ::= OCTET STRING(SIZE (11..23))
+
+--=================================================
+-- OperationID: DLCConnectedSignal (0x0805)
+--=================================================
+
+OpDLCConnectedSignal-Response ::= SEQUENCE {
+    dlcConnected BOOLEAN -- connected(TRUE) / not connected(FALSE)
+}
+
+
+--========================================================================
+--
+-- Service: Positioning (0xA9)
+--
+--========================================================================
+
+--=================================================
+-- OperationID: DeadReckonedPosition (0x0901)
+--=================================================
+
+OpDeadReckonedPosition-Response ::= SEQUENCE {
+    position DRVehiclePosition
+}
+
+DRVehiclePosition ::= CHOICE {
+    noValidData NULL, --Used if the server can not provide a position of sufficient quality
+    drPosition DRPositionData
+}
+
+DRPositionData ::= SEQUENCE {
+    longLat CoordinatesLongLat,
+    heading INTEGER(0..360),
+    speedKmph INTEGER(0..255), --255=unknown
+    hdopX10 INTEGER(0..255), --HDOP multiplied by 10. 255=unknown
+    numSat INTEGER(0..127), --Number of satellites used in fix. 127=unknown
+    fixTime DateTime, --GPS time received with the fix
+    fixType GnssFixType, --Specifies the current GNSS fix, not regarding DR
+    drType DeadReckoningType,
+    drDistance INTEGER(0..65535) --Distance in meters driven since last fix
+}
+
+GnssFixType ::= ENUMERATED {
+    notAvailable (0), --not available : no GNSS information available (e.g no GNSS antenna connection, GNSS receiver failure)
+    noFix (1), --No Fix: satellites received - no position available
+    fix2D (2), --2D fix : satellites received : 2 dimensional position fix
+    fix3D (3), --3D fix : satellites received : 3 dimensional position fix
+    startupMode (4) --Based on a position saved after last driving cycle (Cold Start Fix)
+}
+
+DeadReckoningType ::= ENUMERATED {
+    noDr (0), -- No dead reckoning used
+    drNoMapMatch (1), -- Dead reckoning used but not matched to any map
+    drMapMatched (2) -- Position is matched to map
+}
+
+--=================================================
+-- OperationID: GNSSPositionData (0x0902)
+--=================================================
+
+--========================================================================
+--
+-- Extended GNSS data provided for navigation/positioning purposes.
+--
+--========================================================================
+
+OpGNSSPositionData-Response ::= SEQUENCE {
+    gnssPositionData GNSSData
+}
+
+GNSSData ::= SEQUENCE {
+    -- Observed Time
+    utcTime DateTime, --the UTC time
+    gpsTime GPSSystemTime, --the GPS time
+
+    -- Observed position
+    position GeographicalPosition, --the position in 3D
+    movement Velocity, --speed and velocity
+    heading INTEGER(0..35999), --heading from true north in 1/100 deg.
+
+    -- Positioning solution status
+    gnssStatus GNSSUsage, --indicates the GNSS technologies used for positioning.
+    positioningStatus GNSSStatus, --the positioning status
+    satelliteInfo SatelliteUsage, --info on number of satellites visible and used
+
+    -- Dilution of Precision
+    precision DOPValues, --dilution of precision values
+
+    -- Satellite data
+    receiverChannels ReceiverChannelData --array of data of the receiver channels
+}
+
+GPSSystemTime ::= SEQUENCE {
+    weekNumber INTEGER(0..1023), --the GPS week number
+    timeOfWeek INTEGER(0..604799999) --time of week in 1/1000 s.
+}
+
+GeographicalPosition ::= SEQUENCE {
+    longLat CoordinatesLongLat,
+    altitude INTEGER(-1000..60000) --altitude above mean sea level in 1/10 m.
+}
+
+--Coordinates in degrees/360*2^32. Positive values are North and East
+
+CoordinatesLongLat ::= SEQUENCE {
+    longitude INTEGER(-2147483648..2147483647),
+    latitude INTEGER(-1073741824..1073741824)
+}
+
+Velocity ::= SEQUENCE {
+    speed INTEGER(0..100000), --speed in 1/1000 m/s (mm/s)
+    horizontalVelocity INTEGER(0..100000), --horizontal velocity in 1/1000 m/s (mm/s)
+    verticalVelocity INTEGER(-100000..100000) --vertical velocity in 1/1000 m/s (mm/s)
+}
+
+GNSSUsage ::= SEQUENCE {
+    gpsIsUsed BOOLEAN, --used(True)/not used(False)
+    glonassIsUsed BOOLEAN, --used(True)/not used(False)
+    galileoIsUsed BOOLEAN, --used(True)/not used(False)
+    sbasIsUsed BOOLEAN, --used(True)/not used(False)
+    qzssL1IsUsed BOOLEAN, --used(True)/not used(False)
+    qzssL1SAIFIsUsed BOOLEAN --used(True)/not used(False)
+}
+
+GNSSStatus ::= SEQUENCE {
+    fixType GnssFixType, --Specifies the current GNSS fix
+    dgpsIsUsed BOOLEAN, --DGPS used(True)/not used(False)
+    selfEphemerisDataUsage BOOLEAN --Self ephemeris data used(True)/not used(False)
+}
+
+SatelliteUsage ::= SEQUENCE {
+    nrOfSatellitesVisible NrOfSatellitesPerSystem,
+    nrOfSatellitesUsed NrOfSatellitesPerSystem
+}
+
+NrOfSatellitesPerSystem ::= SEQUENCE {
+    gps INTEGER(0..31), --nbr of GPS satellites, 31=unknown
+    glonass INTEGER(0..31), --nbr of GLONASS satellites, 31=unknown
+    galileo INTEGER(0..31), --nbr of Galileo satellites, 31=unknown
+    sbas INTEGER(0..31), --nbr of SBAS satellites, 31=unknown
+    qzssL1 INTEGER(0..31), --nbr of QZSS L1 satellites, 31=unknown
+    qzssL1SAIF INTEGER(0..31) --nbr of QZSS L1-SAIF satellites, 31=unknown
+}
+
+DOPValues ::= SEQUENCE {
+    hdop INTEGER(0..255), --HDOP in 1/10. 255=unknown or >25.4
+    vdop INTEGER(0..255), --VDOP in 1/10. 255=unknown or >25.4
+    pdop INTEGER(0..255), --PDOP in 1/10. 255=unknown or >25.4
+    tdop INTEGER(0..255)  --TDOP in 1/10. 255=unknown or >25.4
+}
+
+-- There are at least 12 receiver channels, hence the array.
+ReceiverChannelData ::= SEQUENCE (SIZE(0..127)) OF ChannelData
+
+ChannelData ::= SEQUENCE {
+    prn INTEGER(1..255),
+    trackingStatus SatelliteTrackingStatusType,
+    svacc INTEGER(0..15),
+    snr INTEGER(0..255), --signal to noise ratio, dB
+    azimuthAngle INTEGER(0..255), --azimuth angle, 360/256 deg
+    elevationAngle INTEGER(0..255), --elevation angle, 180/256 deg
+    extendedData ExtendedChannelData
+}
+
+SatelliteTrackingStatusType ::= ENUMERATED {
+    searching (0),
+    tracking (1),
+    collectedAndNotUsed (2),
+    collectedAndUsed (3)
+}
+
+ExtendedChannelData ::= CHOICE {
+    notSupported NULL, --Used until VCM supports output of this data
+    data ChannelCorrectionData --Detailed data not suppoted from project start
+}
+
+ChannelCorrectionData ::= SEQUENCE {
+    pseudoRangeMetres INTEGER(-1000000000..1000000000), --mm
+    pseudoRangeMillimetres INTEGER(0..999), -- the pseudo range is expressed in two parameters (due to 32 bit data type limitation), one in metres range and one in millimetre range. They need to be combined for full precision. E.g if pseudoRangeMetres = 15123 and pseudoRangeMillimetres = 50, then the pseudeRange is 15123050 mm.
+    rangeRate INTEGER(-1000000..1000000), --mm/s
+    pseudoRangeCorrectionData INTEGER(-1000000..1000000), --mm
+    selfEphemerisPredictionTime INTEGER(0..255) --0=se data not used
+}
+
+--=================================================
+-- OperationID: DeadReckoningRawData (0x0903)
+--=================================================
+
+--========================================================================
+--
+-- Provides raw data required for Dead Reckoning from the IHU to TEM2.
+--
+--========================================================================
+
+OpDeadReckoningRawData-Response ::= SEQUENCE {
+    rawDeadReckoningData DeadReckoningRawData
+}
+
+DeadReckoningRawData ::= SEQUENCE {
+    -- Observed Time
+    utcTime DateTime, --the UTC time
+    gpsTime GPSSystemTime, --the GPS time
+
+    -- Wheel rotation impuls counter front left
+    whlRotToothCntrFrntLe INTEGER(0..255) ,
+
+    -- Wheel rotation impuls counter front right
+    whlRotToothCntrFrntRi INTEGER(0..255) ,
+
+    -- Wheel rotation impuls counter rear left
+    whlRotToothCntrReLe INTEGER(0..255) ,
+
+    -- Wheel rotation impuls counter front left
+    whlRotToothCntrReRi INTEGER(0..255) ,
+
+    -- WheelCircumference WhlCircum INTEGER(0..4095),
+    whlCircum INTEGER(0..4095),
+
+    -- IMU acceleration data Lateral acceleration
+    aLat1 INTEGER(-139..139),
+
+    -- IMU acceleration data Quality factor for Lateral acceleration signal
+    aLat1Qf1 INTEGER(0..3),
+
+    -- IMU acceleration data Longitudinal acceleration
+    aLgt1 INTEGER(-139..139),
+
+    -- IMU acceleration data Quality factor for Longitudinal acceleration
+    aLgt1Qf1 INTEGER(0..3),
+
+    -- Actual Gear Position
+    gearIndcn INTEGER(0..15)
+}
+
+--GPSSystemTime ::= SEQUENCE {
+--    weekNumber INTEGER(0..1023),
+--    timeOfWeek INTEGER(0..604799999)
+--}
+
+
+--========================================================================
+--
+-- Service: Diagnostic Management (0xAA)
+--
+--========================================================================
+
+--=================================================
+-- OperationID: CurrentJ2534Session (0x0A05)
+--=================================================
+
+OpCurrentJ2534Session-Notification ::= SEQUENCE {
+    sessionStatus BOOLEAN --False, J2534 session inactive, True J2534 session active
+}
+
+--=================================================
+-- OperationID: CurrentDoIPState (0x0A06)
+--=================================================
+
+OpCurrentDoIPState-Notification ::= SEQUENCE {
+    doIPState BOOLEAN,
+    doIPMode DoIPMode,
+    doIPPhase DoIPPhase
+}
+
+DoIPPhase ::= ENUMERATED {
+    none (0),
+    announcement (1),
+    activation (2),
+    session (3)
+}
+
+DoIPMode ::= ENUMERATED {
+    none (0),
+    local (1),
+    remote (2)
+}
+
+--=================================================
+-- OperationID: CurrentDoIPConnection (0x0A07)
+--=================================================
+OpCurrentDoIPConnection-Notification ::= SEQUENCE {
+    currentDoIPConn CurrentDoIPConn
+}
+
+CurrentDoIPConn ::= ENUMERATED {
+    none (0), -- No connection
+    ethernetp2p (1), -- Local connectoin directly to computer
+    ethernetlan (2), -- Local or remote connection via router
+    wlan (3), -- Local or remote connection via WLAN
+    phone (4) -- Remote connection via telephone
+}
+
+END
