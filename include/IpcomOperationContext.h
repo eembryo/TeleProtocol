@@ -88,7 +88,7 @@ static inline guint							IpcomOpContextIdHashFunc(const gconstpointer key)
 { return ((struct _IpcomOpContextId *)key)->senderHandleId; }
 static inline IpcomProtocolOpContextStatus IpcomOpContextGetState(IpcomOpContext *ctx)
 { return ctx->mOpState.nState; }
-static inline gint							CalculateUsedTimeout(gint baseTimeoutValue, gint increaseTimeoutValue, gint nOfRetries) {
+static inline gint							CalculateUsedTimeout(gint baseTimeoutValue, gfloat increaseTimeoutValue, gint nOfRetries) {
 	gint usedTimeoutValue = baseTimeoutValue * powf(increaseTimeoutValue, nOfRetries);
 	return usedTimeoutValue;
 }

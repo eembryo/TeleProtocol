@@ -73,7 +73,7 @@ ServerProccessMessage(IpcomAgent* agent, IpcomOpHandle handle, IpcomMessage *mes
 			IpcomMessageGetVCCPDUOperationID(mesg), IpcomMessageGetVCCPDUSenderHandleID(mesg), IpcomMessageGetVCCPDUOpType(mesg));
 
 	{
-	    gchar* addr_str[100];
+	    gchar addr_str[100];
 	    IpcomMessageCopyOriginInetAddressString(mesg, addr_str, 100);
 	    g_printf("address is %s:%d\n", addr_str, IpcomMessageGetOriginInetPort(mesg));
 	}

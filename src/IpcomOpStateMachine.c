@@ -43,6 +43,7 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_WFAEXPIRED)
 		if (ctx->numberOfRetries > ctx->nWFAMaxRetries) {
 			pOpState->nState = OPCONTEXT_STATUS_FINALIZE;
 			pOpState->nFinCode = OPCONTEXT_FINCODE_EXCEED_MAX_RETRIES;
+			break;
 		}
 		//retransmit message
 		g_assert(ctx->message);
@@ -70,6 +71,7 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_WFREXPIRED)
 		if (ctx->numberOfRetries > ctx->nWFRMaxRetries) {
 			pOpState->nState = OPCONTEXT_STATUS_FINALIZE;
 			pOpState->nFinCode = OPCONTEXT_FINCODE_EXCEED_MAX_RETRIES;
+			break;
 		}
 		//retransmit message
 		g_assert(ctx->message);
