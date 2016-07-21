@@ -17,7 +17,7 @@ typedef struct _IpcomAgent			IpcomAgent;
 typedef struct _AgentMsgHandlers	IpcomAgentMsgHandlers;
 typedef struct _AgentOpCallbacks	IpcomAgentOpCallbacks;
 struct _AgentOpCallbacks {
-	IpcomServiceReturn 		(*OnOpResponse)(IpcomAgent*,IpcomOpHandle,IpcomMessage*,gpointer userdata);
+	void             		(*OnOpResponse)(IpcomAgent*,IpcomOpHandle,IpcomMessage*,gpointer userdata);
 	void					(*OnOpDestroyed)(IpcomAgent*,IpcomOpHandle,IpcomOpContextFinCode,gpointer userdata);
 	gpointer				userdata;
 };

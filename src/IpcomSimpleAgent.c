@@ -236,12 +236,9 @@ _AgentOnResponse(const IpcomOpContextId *opContextId, IpcomMessage *mesg, gpoint
 	DINFO("Operation Response has been received: (OpType:0x%.02x, SHID:0x%.04x, CONN:%p)\n", IpcomMessageGetVCCPDUOpType(mesg), IpcomMessageGetVCCPDUSenderHandleID(mesg), opContextId->connection);
 #endif
 
-	if (!cb_data)
-		return IPCOM_SERVICE_SUCCESS;
-	else if(cb_data->cbs.OnOpResponse)
-		return cb_data->cbs.OnOpResponse(cb_data->agent, handle, mesg, cb_data->cbs.userdata);
-	else
-		return IPCOM_SERVICE_SUCCESS;
+	if (cb_data && cb_data->cbs.OnOpResponse)
+	    cb_data->cbs.OnOpResponse(cb_data->agent, handle, mesg, cb_data->cbs.userdata);
+	return IPCOM_SERVICE_SUCCESS;
 }
 
 static void

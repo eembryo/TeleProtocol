@@ -6,12 +6,10 @@
 IpcomAgent* 		agent = NULL;
 IpcomAgentSocket	asock = 0;
 
-static IpcomServiceReturn
+static void
 ClientOnResponse(IpcomAgent* agent,IpcomOpHandle handle,IpcomMessage *mesg,gpointer userdata)
 {
 	DFUNCTION_START;
-
-	return 1;
 }
 
 static void
@@ -40,16 +38,10 @@ SendingTask(gpointer data)
 		count += 2;
 	}
 	mesg = IpcomMessageNew(IPCOM_MESSAGE_MIN_SIZE);
-	/*
 	IpcomMessageInitVCCPDUHeader(mesg,
 			IPCOM_SERVICEID_TELEMATICS, 0x0104,
 			BUILD_SENDERHANDLEID(IPCOM_SERVICEID_TELEMATICS, 0x0104, count%7, count),
 			IPCOM_PROTOCOL_VERSION, count%7, 0, 0);
-	 */
-    IpcomMessageInitVCCPDUHeader(mesg,
-            IPCOM_SERVICEID_TELEMATICS, 0x0104,
-            BUILD_SENDERHANDLEID(IPCOM_SERVICEID_TELEMATICS, 0x010C, IPCOM_OPTYPE_NOTIFICATION, count),
-            IPCOM_PROTOCOL_VERSION, IPCOM_OPTYPE_NOTIFICATION, 0, 0);
 	payload_buf = g_malloc0(16);
 	IpcomMessageSetPayloadBuffer(mesg, payload_buf, 16);
 	/// Send it to IpcomProtocol
@@ -195,8 +187,7 @@ main()
 
 	//start thread for sending messages
 	//pSendingThread = g_thread_new("Sending Thread", &SendingThread, NULL);
-	//g_timeout_add(1000,SendingTask, NULL);
-	SendingTask(NULL);
+	g_timeout_add(1000,SendingTask, NULL);
 	//g_thread_new("Sending Thread", &SendingThread, NULL);
 	g_main_loop_run (main_loop);
 }
