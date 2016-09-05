@@ -1,8 +1,0 @@
-This is wireshark dissector for IP command bus message.
-To analyze IP command bus message, You should run wireshark with lua script file, ipcmd_dissector.lua. 
-	- $ wireshark -X lua_script:ipcmd_dissector.lua dump.pcap
-
-The lua script only analyze header of IP command bus message.
-If you want to analyze payload, copy "ipcmd.so" into wireshark plugin directory such as ${HOME}/.config/wireshark/plugins/. (Only linux version plugin exists.)
-And enable following line in ipcmd.dissector.lua file.
-	- ipcmd_pl_dt = DissectorTable.get("ipcmd_payload")

@@ -19,7 +19,7 @@ cmake_minimum_required(VERSION 2.8.1)
 
 project(IPCOMMANDPROTOCOL C)
 
-add_definitions(-DDEBUG=DLOG_LEVEL_INFO -DENABLE_LOG_COLOR -DTESTAPP_DEBUG -g -Wall)
+add_definitions(-DDEBUG=DLOG_LEVEL_WARN -DENABLE_LOG_COLOR -DTESTAPP_DEBUG -g -Wall)
 
 set(IPCOMM_LIB ipcmd)
 
@@ -46,7 +46,7 @@ set(LIBRARIES
     )
 
 add_subdirectory(src)
-add_subdirectory(test)
+#add_subdirectory(test)
 
 install(DIRECTORY include DESTINATION /app/
   FILES_MATCHING PATTERN "*.h")
