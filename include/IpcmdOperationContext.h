@@ -10,6 +10,8 @@
 
 #include <glib.h>
 
+G_BEGIN_DECLS
+
 typedef struct _IpcmdOperationContext IpcmdOperationContext;
 typedef struct _IpcmdOperationContextId IpcmdOperationContextId;
 
@@ -18,5 +20,7 @@ IpcmdOperationContextIdIsMatch(const IpcmdOperationContextId *a, const IpcmdOper
 {
 	return a->channel_id_ == b->channel_id_ && a->sender_handle_id_ == b->sender_handle_id_ ? TRUE : FALSE;
 }
+
+G_END_DECLS
 
 #endif /* INCLUDE_IPCMDOPERATIONCONTEXT_H_ */

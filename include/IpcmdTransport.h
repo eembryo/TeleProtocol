@@ -8,34 +8,36 @@
 #ifndef INCLUDE_IPCMDTRANSPORT_H_
 #define INCLUDE_IPCMDTRANSPORT_H_
 
-#include "IpcmdBus.h"
+#include "IpcmdDeclare.h"
 #include <glib.h>
 
-typedef gint 				(*_IpcmdTransportTransmit)			(IpcmdTransport*,const IpcmdChannel*,const IpcmdMessage*);
-//typedef IpcomConnection*	(*_IpcomTransportGetBroadConnection)(IpcomTransport*);
-typedef gboolean 			(*_IpcmdTransportBind)				(IpcmdTransport*,const gchar *ip,const guint16 port);
-typedef gboolean 			(*_IpcomTransportOnReadyToReceive)	(IpcmdTransport*,GSocket *);
-typedef IpcmdChannelId		(*_IpcmdTransportConnect)			(IpcmdTransport*,const gchar *ip,const guint16 port);
-typedef gboolean			(*_IpcmdTransportListen)			(IpcmdTransport*,const gint backlog);
-typedef gboolean			(*_IpcomTransportCloseChannel)		(IpcmdTransport*,const IpcmdChannelId channel_id);
+G_BEGIN_DECLS
 
-typedef enum {
+enum IpcmdTransportType {
 	kIpcmdTransportUnknown = 0,
 	kIpcmdTransportUdpv4,
-} IpcmdTransportType;
-
-typedef struct _IpcmdTransport IpcmdTransport;
-struct _IpcmdTransport {
-	GSocket			*socket_;
-	IpcmdBus		*bus_;
-
-	IpcmdTransportType			type_;
-	_IpcmdTransportConnect		connect;
-	_IpcmdTransportBind			bind;
-	_IpcmdTransportTransmit		transmit;
-	_IpcmdTransportListen		listen;
-//	_IpcomTransportGetBroadConnection	getBroadConnection;
-	_IpcomTransportOnReadyToReceive		onReadyToReceive;
+	kIpcmdTransportTcpv4,
 };
+
+typedef gint 				(*IpcmdTransportTransmit)			(IpcmdTransport*,const IpcmdChannel*,IpcmdMessage*);
+//typedef IpcomConnection*	(*_IpcomTransportGetBroadConnection)(IpcomTransport*);
+typedef gboolean 			(*IpcmdTransportBind)				(IpcmdTransport*,const gchar *ip,const guint16 port);
+typedef gint				(*IpcmdTransportConnect)			(IpcmdTransport*,const gchar *ip,const guint16 port);
+typedef gboolean			(*IpcmdTransportListen)			(IpcmdTransport*,const gint backlog);
+//typedef gboolean			(*_IpcomTransportCloseChannel)		(IpcmdTransport*,const IpcmdChannelId channel_id);
+
+struct _IpcmdTransport {
+	IpcmdBus					*bus_;	// will be set when attaching to IpcmdBus
+
+	/* following items should be set by inherited class before attaching. */
+	GSource						*source_;	// source_ is attached to mainloop at IpcmdBusAttachTransport().
+	enum IpcmdTransportType		type_;
+	IpcmdTransportBind			bind;
+	IpcmdTransportConnect		connect;
+	IpcmdTransportListen		listen;
+	IpcmdTransportTransmit		transmit;
+};
+
+G_END_DECLS
 
 #endif /* INCLUDE_IPCMDTRANSPORT_H_ */

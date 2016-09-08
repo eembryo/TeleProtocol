@@ -8,6 +8,7 @@
 #include "../include/IpcmdMessage.h"
 #include "../include/reference.h"
 #include <glib.h>
+#include <string.h>
 
 static inline void
 _IpcmdMessageFree(struct ref *r)
@@ -62,7 +63,7 @@ IpcmdMessageNew(guint16 size)
 	return IpcmdMessageRef(pMsg);
 
 message_alloc_failed:
-	if (error) DWARN("%s\n", error);
+	if (error) g_warning("%s", error);
 
 	return NULL;
 }
@@ -90,13 +91,22 @@ IpcmdMessageUnref(IpcmdMessage *mesg)
 
 gboolean
 IpcmdMessageCopyToPayloadBuffer(IpcmdMessage *mesg, gpointer src, guint32 length) {
-	guint MaxPayloadSize = mesg->actual_size-VCCPDUHEADER_SIZE;
+	guint max_payload_size = mesg->actual_size-VCCPDUHEADER_SIZE;
 
-	if (length > MaxPayloadSize) return FALSE;	//payload size is bigger than allocated memory
+	if (length > max_payload_size) //if payload size is bigger than allocated memory
+		return FALSE;
 
 	mesg->payload_ptr = (gpointer)mesg->vccpdu_ptr + sizeof(struct _VCCPDUHeader);
 	memcpy(mesg->payload_ptr, src, length);
 	IpcmdMessageSetPayloadLength(mesg, length);
 
 	return TRUE;
+}
+
+void
+IpcmdMessageSetOriginSockAddress(IpcmdMessage *mesg, GSocketAddress *paddr)
+{
+    if (mesg->origin_addr) g_object_unref(paddr);
+
+    mesg->origin_addr = g_object_ref(paddr);
 }

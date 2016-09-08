@@ -46,7 +46,7 @@ set(LIBRARIES
     )
 
 add_subdirectory(src)
-#add_subdirectory(test)
+add_subdirectory(test)
 
 install(DIRECTORY include DESTINATION /app/
   FILES_MATCHING PATTERN "*.h")

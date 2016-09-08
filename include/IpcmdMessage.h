@@ -19,11 +19,10 @@
 
 #include <glib.h>
 #include <gio/gio.h>
+#include "IpcmdDeclare.h"
 #include "reference.h"
 
 G_BEGIN_DECLS
-
-typedef struct _IpcmdMessage IpcmdMessage;
 
 #define VCCPDUHEADER_SIZE				16
 #define VCCPDUHEADER_LENGTH_CORRECTION	8
@@ -56,22 +55,22 @@ struct _IpcmdMessage {
 	struct ref				_ref;
 	struct _VCCPDUHeader	*vccpdu_ptr;
 	gpointer				payload_ptr;
-	guint32					actual_size;	//the size of allocated memory for this message. It does not include the size of 'struct _IpcmdMessage'
+	guint32					actual_size;	//the amount of allocated memory for the following raw message. It does not include the size of 'struct _IpcmdMessage'
     GSocketAddress*         origin_addr;    //originator of this message
 	guint32					mesg_length;
 	gchar					message[0];		//the start of raw message.
 };
 
 enum IPCMD_OPTYPE {
-	IPCMD_OPTYPE_REQUEST = 0x00,
-	IPCMD_OPTYPE_SETREQUEST_NORETURN,
-	IPCMD_OPTYPE_SETREQUEST,
-	IPCMD_OPTYPE_NOTIFICATION_REQUEST,
-	IPCMD_OPTYPE_RESPONSE,
-	IPCMD_OPTYPE_NOTIFICATION,
-	IPCMD_OPTYPE_NOTIFICATION_CYCLIC,
-	IPCMD_OPTYPE_ACK = 0x70,
-	IPCMD_OPTYPE_ERROR = 0xE0,
+	IPCMD_OPTYPE_REQUEST 				= 0x00,
+	IPCMD_OPTYPE_SETREQUEST_NORETURN	= 0x01,
+	IPCMD_OPTYPE_SETREQUEST				= 0x02,
+	IPCMD_OPTYPE_NOTIFICATION_REQUEST	= 0x03,
+	IPCMD_OPTYPE_RESPONSE				= 0x04,
+	IPCMD_OPTYPE_NOTIFICATION			= 0x05,
+	IPCMD_OPTYPE_NOTIFICATION_CYCLIC	= 0x06,
+	IPCMD_OPTYPE_ACK 					= 0x70,
+	IPCMD_OPTYPE_ERROR 					= 0xE0,
 };
 
 // if size equals to zero, maximum message size is allocated.

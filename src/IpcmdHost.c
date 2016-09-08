@@ -3,27 +3,13 @@
 #include <glib.h>
 #include <gio/gio.h>
 
-enum IpcmdHostType {
-	// inet hosts
-	IPCMD_UDPv4_HOST = 0,
-	IPCMD_TCPv4_HOST,
-	// something different hosts
-};
 /*
- * IpcmdHostHostCompare: return 0 if two instances are same or -1
- */
-typedef gboolean (*IpcmdHostEqual)(const IpcmdHost* a, const IpcmdHost* b);
-
-/*
- * IpcmdHost: abstract class for containing location information of specific device.
+ * IpcmdHostRef :
+ * Increase reference count for IpcmdHost instance.
  *
+ * @host : IpcmdHost object
+ * return a pointer about IpcmdHost instancet
  */
-struct _IpcmdHost {
-	enum IpcmdHostType	host_type_;
-	IpcmdHostEqual		equal;
-	struct ref			ref_;
-};
-
 gpointer
 IpcmdHostRef (IpcmdHost *host)
 {
@@ -34,6 +20,13 @@ IpcmdHostRef (IpcmdHost *host)
 	return host;
 }
 
+/*
+ * IpcmdHostUnref :
+ * Decrease reference count for IpcmdHost object. If reference count reaches to zero,
+ * the instance is destroyed.
+ *
+ * @host : IpcmdHost object
+ */
 void
 IpcmdHostUnref (IpcmdHost *host)
 {
@@ -42,37 +35,41 @@ IpcmdHostUnref (IpcmdHost *host)
 	ref_dec(&host->ref_);
 }
 
-/**
- * IpcmdUdpv4Host: contains IPv4 address and UDP port information.
- */
-struct _IpcmdUdpv4Host {
-	struct _IpcmdHost parent_;
-	GInetSocketAddress*	socket_address_;
-};
-
-
 static gboolean
 _Udpv4HostEqual(const IpcmdHost* a, const IpcmdHost* b)
 {
 	struct _IpcmdUdpv4Host* udpv4_host_a = (IpcmdUdpv4Host*)a;
 	struct _IpcmdUdpv4Host* udpv4_host_b = (IpcmdUdpv4Host*)b;
 
-	if (a->host_type_ != IPCMD_UDPv4_HOST || b->host_type_ != IPCMD_UDPv4_HOST) return -1;
+	if (a->host_type_ != IPCMD_UDPv4_HOST || b->host_type_ != IPCMD_UDPv4_HOST) return FALSE;
 
-	return	g_inet_address_equal (g_inet_socket_address_get_address (udpv4_host_a->socket_address_), g_inet_socket_address_get_address (udpv4_host_b->socket_address_)) &&
-			g_inet_socket_address_get_port (udpv4_host_a->socket_address_) == g_inet_socket_address_get_port (udpv4_host_a->socket_address_) ? TRUE : FALSE;
+	return	g_inet_address_equal (g_inet_socket_address_get_address (udpv4_host_a->inet_sockaddr_), g_inet_socket_address_get_address (udpv4_host_b->inet_sockaddr_)) &&
+			g_inet_socket_address_get_port (udpv4_host_a->inet_sockaddr_) == g_inet_socket_address_get_port (udpv4_host_a->inet_sockaddr_) ? TRUE : FALSE;
 }
 
+/* _Udpv4HostFree :
+ * This is called when reference count for IpcmdHost reaches to zero.
+ *
+ * @r : reference count object
+ */
 static void
 _Udpv4HostFree(struct ref *r)
 {
 	struct _IpcmdUdpv4Host *host = (struct _IpcmdUdpv4Host*)container_of(r, struct _IpcmdHost, ref_);
 
-	g_object_unref (host->socket_address_);
+	g_object_unref (host->inet_sockaddr_);
 	g_free (host);
 }
 
-IpcmdUdpv4Host*
+/* IpcmdUdpv4HostNew :
+ * Create IpcmdUdpv4Host instance and return IpcmdHost*.
+ *
+ * @address : IPv4 address
+ * @port : UDP port
+ * return NULL if no memory is available
+ * return a pointer to new allocated IpcmdHost memory
+ */
+IpcmdHost*
 IpcmdUdpv4HostNew (GInetAddress *address, guint16 port)
 {
 	struct _IpcmdUdpv4Host* host = g_malloc(sizeof(struct _IpcmdUdpv4Host));
@@ -81,17 +78,27 @@ IpcmdUdpv4HostNew (GInetAddress *address, guint16 port)
 
 	host->parent_.host_type_ = IPCMD_UDPv4_HOST;
 	host->parent_.equal = _Udpv4HostEqual;
-	host->socket_address_ = g_inet_socket_address_new (address, port);
-	if (host->socket_address_ == NULL) goto _IpcmdUdpv4HostNew_failed;
+	host->inet_sockaddr_ = G_INET_SOCKET_ADDRESS (g_inet_socket_address_new (address, port));
+	if (host->inet_sockaddr_ == NULL) goto _IpcmdUdpv4HostNew_failed;
 
 	ref_init(&host->parent_.ref_, _Udpv4HostFree);
+
+	return &host->parent_;
 
 	_IpcmdUdpv4HostNew_failed:
 	if (host) g_free(host);
 	return NULL;
 }
 
-IpcmdUdpv4Host*
+/* IpcmdUdpv4HostNew :
+ * same as IpcmdUdpv4Host, but the socket address, 'sock_addr' which is passed by argument, is
+ * referred.
+ *
+ * @sock_addr : socket address, which is composed of IPv4 address and port.
+ * return NULL if no memory is available
+ * return a pointer to new allocated IpcmdHost memory
+ */
+IpcmdHost*
 IpcmdUdpv4HostNew2 (GInetSocketAddress *sock_addr)
 {
 	struct _IpcmdUdpv4Host* host = g_malloc(sizeof(struct _IpcmdUdpv4Host));
@@ -100,9 +107,11 @@ IpcmdUdpv4HostNew2 (GInetSocketAddress *sock_addr)
 
 	host->parent_.host_type_ = IPCMD_UDPv4_HOST;
 	host->parent_.equal = _Udpv4HostEqual;
-	host->socket_address_ = g_object_ref(sock_addr);
+	host->inet_sockaddr_ = g_object_ref(sock_addr);
 
 	ref_init(&host->parent_.ref_, _Udpv4HostFree);
+
+	return &host->parent_;
 
 	_IpcmdUdpv4HostNew2_failed:
 	if (host) g_free(host);

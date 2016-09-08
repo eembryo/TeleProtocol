@@ -8,6 +8,15 @@
 #ifndef INCLUDE_IPCMDTRANSPORTUDPV4_H_
 #define INCLUDE_IPCMDTRANSPORTUDPV4_H_
 
+#include "IpcmdDeclare.h"
+#include <glib.h>
+
+G_BEGIN_DECLS
+
 typedef struct _IpcmdTransportUdpv4 IpcmdTransportUdpv4;
+
+IpcmdTransport*	IpcmdTransportUdpv4New();
+void			IpcmdTransportUdpv4Destroy(IpcmdTransport *transport);
+G_END_DECLS
 
 #endif /* INCLUDE_IPCMDTRANSPORTUDPV4_H_ */

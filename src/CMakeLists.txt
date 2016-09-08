@@ -1,5 +1,12 @@
-set(SRCS 
+set(SRCS
+	IpcmdCore.c
+	IpcmdBus.c 
 	IpcmdHost.c
+	IpcmdChannel.c
+	IpcmdMessage.c
+	IpcmdTransportUdpv4.c
+	NetifcMonitor.c
+	SocketUtils.c
    )
 
 add_library(${IPCOMM_LIB} SHARED ${SRCS})

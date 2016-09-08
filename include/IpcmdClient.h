@@ -8,6 +8,10 @@
 #ifndef INCLUDE_IPCMDCLIENT_H_
 #define INCLUDE_IPCMDCLIENT_H_
 
+#include <glib.h>
+
+G_BEGIN_DECLS
+
 typedef struct _IpcmdClient IpcmdClient;
 
 struct _IpcmdOperationCallback {
@@ -18,5 +22,7 @@ struct _IpcmdOperationCallback {
 	gpointer	cb_data;
 };
 typedef struct _IpcmdOperationCallback IpcmdOperationCallback;
+
+G_END_DECLS
 
 #endif /* INCLUDE_IPCMDCLIENT_H_ */
