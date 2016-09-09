@@ -8,22 +8,60 @@
 
 #include "../include/IpcmdCore.h"
 #include "../include/IpcmdServer.h"
+#include "../include/IpcmdServerImpl.h"
 #include "../include/IpcmdMessage.h"
 #include "../include/IpcmdBus.h"
-//#include "../include/reference.h"
 #include <glib.h>
-/*
-#define IPCMD_BUS_TO_CORE(b) (container_of (b, IpcmdCore, bus_))
-#define IPCMD_CORE_TO_BUS(c) (&c->bus_)
-*/
+
+struct _IpcmdCore {
+	IpcmdServer		server_;
+	GList			*clients_;
+	GMainContext	*main_context;
+	IpcmdBus		bus_;
+	GHashTable		*operation_contexts_;
+};
 
 void
 IpcmdCoreInit(IpcmdCore *self, GMainContext *context)
 {
 	self->main_context = context;
-	IpcmdBusInit (&self->bus_);
 	self->operation_contexts_ = NULL;
+	self->clients_ = NULL;
+
+	/* initialize bus */
+	IpcmdBusInit (&self->bus_,self);
+	/* initialize server */
+	IpcmdServerInit (&self->server_,self);
 }
+
+void
+IpcmdCoreFinalize(IpcmdCore *self)
+{
+	// IMPL: free self->operation_contexts_
+	// IMPL: free self->clients_
+	// g_list_free (self->clients_);
+	IpcmdServerFinalize (self->server_);
+	IpcmdBusFinalize (self->bus_);
+}
+
+gboolean
+IpcmdCoreRegisterClient(IpcmdCore *self, IpcmdClient *client)
+{
+	GList *l = g_list_find (self->clients_, client);
+
+	if (l) return TRUE;
+
+	self->clients_ = g_list_append (self->clients_, client);
+
+	return TRUE;
+}
+
+void
+IpcmdCoreUnregisterClient(IpcmdCore *self, IpcmdClient *client)
+{
+	self->clients_ = g_list_remove (self->clients_, client);
+}
+
 void
 IpcmdCoreDispatch(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg)
 {

@@ -9,10 +9,15 @@
 G_BEGIN_DECLS
 
 enum IpcmdHostType {
-	// inet hosts
+	/* INET hosts */
 	IPCMD_UDPv4_HOST = 0,
 	IPCMD_TCPv4_HOST,
-	// something different hosts
+	//IPCMD_UDPv6_HOST,
+	//IPCMD_TCPV6_HOST,
+
+	/* something different hosts */
+	// unix socket host
+	// pipe endpoint
 };
 
 /* IpcmdHostHostCompare: return TRUE if two instances are same or return FALSE */
@@ -27,6 +32,8 @@ struct _IpcmdHost {
 	struct ref			ref_;
 };
 
+#define IPCMD_HOST(o) (IpcmdHost*)(o)
+
 gpointer	IpcmdHostRef (IpcmdHost *host);
 void		IpcmdHostUnref (IpcmdHost *host);
 
@@ -39,9 +46,6 @@ struct _IpcmdUdpv4Host {
 };
 typedef struct _IpcmdUdpv4Host	IpcmdUdpv4Host;
 
-static inline IpcmdHost* IPCMD_HOST(gpointer obj) {
-	return (IpcmdHost*)obj;
-}
 static inline IpcmdUdpv4Host* IPCMD_UDPv4HOST(IpcmdHost *obj) {
 	if (obj->host_type_ != IPCMD_UDPv4_HOST) return NULL;
 	return container_of (obj, struct _IpcmdUdpv4Host, parent_);
@@ -49,6 +53,7 @@ static inline IpcmdUdpv4Host* IPCMD_UDPv4HOST(IpcmdHost *obj) {
 
 IpcmdHost*	IpcmdUdpv4HostNew (GInetAddress *address, guint16 port);
 IpcmdHost*	IpcmdUdpv4HostNew2 (GInetSocketAddress *sock_addr);
+
 G_END_DECLS
 
 #endif

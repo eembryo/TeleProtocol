@@ -8,15 +8,13 @@
 #ifndef INCLUDE_IPCMDOPERATIONCONTEXT_H_
 #define INCLUDE_IPCMDOPERATIONCONTEXT_H_
 
+#include "IpcmdDeclare.h"
 #include <glib.h>
 
 G_BEGIN_DECLS
 
-typedef struct _IpcmdOperationContext IpcmdOperationContext;
-typedef struct _IpcmdOperationContextId IpcmdOperationContextId;
-
 inline gboolean
-IpcmdOperationContextIdIsMatch(const IpcmdOperationContextId *a, const IpcmdOperationContextId *b)
+IpcmdOpCtxIdIsMatch(const IpcmdOpCtxId *a, const IpcmdOpCtxId *b)
 {
 	return a->channel_id_ == b->channel_id_ && a->sender_handle_id_ == b->sender_handle_id_ ? TRUE : FALSE;
 }

@@ -13,14 +13,22 @@
 
 G_BEGIN_DECLS
 
-struct _IpcmdBus {
-	GHashTable		*channels_;
-	guint16			last_alloc_channel_id_;
-	GList			*transports_;
-};
+typedef enum {
+	kBusEventChannelAdd,
+	kBusEventChannelRemove,
+	kBusEventChannelStatusChange,
+} IpcmdBusEventType;
+
+typedef struct {
+	void (*OnChannelEvent)(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data);
+} IpcmdBusEventListener;
+
+gboolean 	IpcmdBusAddEventListener(IpcmdBus *self, const IpcmdBusEventListener *listener);
+void		IpcmdBusRemoveEventListener(IpcmdBus *self, const IpcmdBusEventListener *listener);
+void 		IpcmdBusNotifyChannelEvent(IpcmdBus *self, IpcmdChannelId id, const IpcmdBusEventType ev_type, gconstpointer ev_data);
 
 void 		IpcmdBusInit(IpcmdBus *self);
-void 		IpcmdBusClear(struct _IpcmdBus *self);
+void 		IpcmdBusFinalize(struct _IpcmdBus *self);
 IpcmdChannel*	IpcmdBusFindChannelById(IpcmdBus *self, IpcmdChannelId id);
 guint16 	IpcmdBusRegisterChannel(IpcmdBus *self, IpcmdChannel *channel);
 void 		IpcmdBusUnregisterChannel(IpcmdBus *self, IpcmdChannel *channel);

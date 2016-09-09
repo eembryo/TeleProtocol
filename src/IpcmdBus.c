@@ -16,9 +16,17 @@
 #define MAX_N_OF_CHANNELS	1024
 #define INVALID_CHANNEL_ID	0	//channel number '0' is used for error.
 
-static inline IpcmdCore *IPCMD_BUS_TO_CORE(IpcmdBus *b) {
-	return container_of (b, IpcmdCore, bus_);
-}
+struct _IpcmdBus {
+	GHashTable		*channels_;				// key: positive integer, value: IpcmdChannel*
+	GList			*transports_;			// data: IpcmdTransport*
+	guint16			last_alloc_channel_id_;	// the last allocated channel id
+	GList			*event_listeners_;		// data: IpcmdBusEventListener*
+	IpcmdCore		*core_;
+};
+
+static void _NotifyChannelEvent(IpcmdBus *self, IpcmdChannelId id, const IpcmdBusEventType ev_type, gconstpointer ev_data);
+static guint16 _GetSpareChannelId(struct _IpcmdBus *self);
+static void _OnRemoveChannelFromHashtable(IpcmdChannel *channel);
 
 /* _GetSpareChannelId :
  * Return unique channel id unless the number of allocated channel id does not exceed MAX_N_OF_CHANNELS.
@@ -44,7 +52,7 @@ _GetSpareChannelId(struct _IpcmdBus *self)
 }
 
 static void
-_OnChannelRemovedFromHashtable(IpcmdChannel *channel)
+_OnRemoveChannelFromHashtable(IpcmdChannel *channel)
 {
 	channel->channel_id_ = 0;
 }
@@ -53,18 +61,19 @@ _OnChannelRemovedFromHashtable(IpcmdChannel *channel)
  * initialize IpcmdBus.
  */
 void
-IpcmdBusInit(IpcmdBus *self)
+IpcmdBusInit(IpcmdBus *self, IpcmdCore *core)
 {
-	self->channels_ = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, (GDestroyNotify)_OnChannelRemovedFromHashtable);
+	self->channels_ = g_hash_table_new_full (g_direct_hash, g_direct_equal, NULL, (GDestroyNotify)_OnRemoveChannelFromHashtable);
 	self->last_alloc_channel_id_ = 0;
 	self->transports_ = NULL;
+	self->core_ = core;
 }
 
 /* IpcmdBusClear :
  * Clear IpcmdBus memory.
  */
 void
-IpcmdBusClear(struct _IpcmdBus *self)
+IpcmdBusFinalize(struct _IpcmdBus *self)
 {
 	GList *iter;
 
@@ -112,11 +121,16 @@ IpcmdBusRegisterChannel(IpcmdBus *self, IpcmdChannel *channel)
 
 	g_hash_table_insert (self->channels_, GINT_TO_POINTER(channel->channel_id_), channel);
 
+	_NotifyChannelEvent(self, channel->channel_id_, kBusEventChannelAdd, NULL);
+
 	return channel->channel_id_;
 }
 
 /* IpcmdBusUnregisterChannel:
  * unregister a channel.
+ *
+ * @self:
+ * @channel: IpcmdChannel*
  */
 void
 IpcmdBusUnregisterChannel(IpcmdBus *self, IpcmdChannel *channel)
@@ -128,7 +142,7 @@ IpcmdBusUnregisterChannel(IpcmdBus *self, IpcmdChannel *channel)
 	 */
 	g_hash_table_remove (self->channels_, GINT_TO_POINTER(channel->channel_id_));
 
-	// IMPL: notify an unregistering event to IpcmdServer and IpcmdClients
+	_NotifyChannelEvent(self, channel->channel_id_, kBusEventChannelRemove, NULL);
 }
 
 /* IpcmdBusFindChannelsByPeerHost:
@@ -170,7 +184,7 @@ IpcmdBusAttachTransport(IpcmdBus *self, IpcmdTransport *transport)
 	self->transports_ = g_list_append (self->transports_, transport);
 	transport->bus_ = self;
 
-	g_source_attach (transport->source_, IpcmdCoreGetGMainContext(IPCMD_BUS_TO_CORE(self)));
+	g_source_attach (transport->source_, IpcmdCoreGetGMainContext(self->core_));
 
 	return TRUE;
 }
@@ -206,7 +220,56 @@ IpcmdBusTx(IpcmdBus *self, IpcmdChannelId channel_id, IpcmdMessage *mesg)
 gint
 IpcmdBusRx(IpcmdBus *self, IpcmdChannelId channel_id, IpcmdMessage *mesg)
 {
-	IpcmdCoreDispatch (IPCMD_BUS_TO_CORE(self), channel_id, mesg);
+	IpcmdCoreDispatch (self->core_, channel_id, mesg);
 
 	return 0;
+}
+
+/* IpcmdBusAddEventListener :
+ * Add listener for bus event
+ *
+ * return TRUE on success
+ * return FALSE on failure
+ */
+gboolean
+IpcmdBusAddEventListener(IpcmdBus *self, const IpcmdBusEventListener *listener)
+{
+	GList *l = g_list_find (self->event_listeners_, listener);
+	if (l) {
+		g_list_free (l);
+		return FALSE;
+	}
+
+	self->event_listeners_ = g_list_append (self->event_listeners_, listener);
+	return TRUE;
+}
+
+/* IpcmdBusRemoveEventListener :
+ * Stop the listener to get bus events
+ *
+ * @self:
+ * @listener: event listener
+ */
+void
+IpcmdBusRemoveEventListener(IpcmdBus *self, const IpcmdBusEventListener *listener)
+{
+	self->event_listeners_ = g_list_remove (self->event_listeners_, listener);
+}
+
+/* _NotifyChannelEvent :
+ * Inform a channel event to all subscribers
+ *
+ * @self : IpcmdBus
+ * @id : channel id which is updated
+ * @ev_type : event type
+ * @ev_data : event data, depended on 'ev_type'
+ */
+static void
+_NotifyChannelEvent(IpcmdBus *self, IpcmdChannelId id, const IpcmdBusEventType ev_type, gconstpointer ev_data)
+{
+	GList *l;
+
+	for (l = self->event_listeners_; l != NULL; l = l->next) {
+		((IpcmdBusEventListener*)(l->data))->OnChannelEvent (l->data, ev_type, ev_data);
+	}
 }

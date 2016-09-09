@@ -23,5 +23,8 @@ typedef struct _IpcmdMessage 	IpcmdMessage;
 typedef struct _IpcmdHost 		IpcmdHost;
 // IpcmdTransport.h
 typedef struct _IpcmdTransport 	IpcmdTransport;
+// IpcmdOperationContext.h
+typedef struct _IpcmdOperationContextId	IpcmdOpCtxId;
+typedef struct _IpcmdOperationContext	IpcmdOpCtx;
 
 #endif /* INCLUDE_IPCMDDECLARE_H_ */
