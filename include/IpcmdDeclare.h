@@ -26,5 +26,8 @@ typedef struct _IpcmdTransport 	IpcmdTransport;
 // IpcmdOperationContext.h
 typedef struct _IpcmdOperationContextId	IpcmdOpCtxId;
 typedef struct _IpcmdOperationContext	IpcmdOpCtx;
-
+// IpcmdOpState.h
+typedef struct _IpcomOpState IpcomOpState;
+// IpcmdServer.h
+typedef struct _IpcmdServer IpcmdServer;
 #endif /* INCLUDE_IPCMDDECLARE_H_ */

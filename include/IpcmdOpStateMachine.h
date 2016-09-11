@@ -67,7 +67,6 @@ struct _IpcomOpState {
 	gint					fin_code_;
 	IpcomOpStateMachine*	pSM;
 };
-typedef struct _IpcomOpState IpcomOpState;
 
 typedef gint (*SMDoAction)(IpcomOpState *pOpState, IpcmdOpContextTriggers trigger, gpointer data);
 struct _IpcomOpStateMachine {

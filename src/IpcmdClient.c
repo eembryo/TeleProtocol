@@ -15,16 +15,19 @@ struct _IpcmdClient {
 	IpcmdChannelId	channel_id_;
 	GHashTable		*operation_contexts_;
 	GList			*subscribed_notifications_;
+	guint16			service_id_;
+	IpcmdCore		*core_;
 };
 
+/*
 struct _SubscribedNotification {
-	guint16					service_id_;
 	guint16					operation_id_;
 	IpcmdOperationCallback	*cb_;
 };
+*/
 
 void
-IpcmdOperationCallbackFree(IpcmdOperationCallback *cb)
+IpcmdOperationCallbackFree(IpcmdClientOperationCallback *cb)
 {
 	if (cb->cb_destroy)	cb->cb_destroy (cb->cb_data);
 	else g_free(cb->cb_data);
@@ -53,7 +56,7 @@ IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMess
  * create IP COMMAND message and send it to bus.
  */
 OpHandle
-IpcmdClientInvokeOperation(struct _IpcmdClient *self, const IpcmdOperation *operation, const IpcmdOperationCallback *cb)
+IpcmdClientInvokeOperation(struct _IpcmdClient *self, const IpcmdOperation *operation, const IpcmdOperationResultCallback *cb)
 {
 
 	return NULL;

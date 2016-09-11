@@ -8,45 +8,65 @@
 #include "../include/IpcmdOperationContext.h"
 #include "../include/IpcmdMessage.h"
 #include "../include/IpcmdOpStateMachine.h"
+#include "IpcmdDeclare.h"
 #include <glib.h>
 
-struct _IpcmdOperationContextId {
-	IpcmdChannelId	channel_id_;
-	guint32			sender_handle_id_;
-} __attribute__ ((packed));
+IpcmdOpCtx*
+IpcmdOpCtxNew()
+{
 
-struct _IpcmdOperationContext {
-	struct _IpcmdOperationContextId		opctx_id_;
+}
 
-	/// operation information
-	guint16								serviceId;
-	guint16								operationId;
-	guint8								protoVersion;
-	guint8								opType;
-	//gboolean							procflag;
-	IpcmdMessage						*message;
+void
+IpcmdOpCtxSetMessage(IpcmdOpCtx *self, IpcmdMessage *mesg)
+{
 
-	/// operation state
-	IpcmdOpState						mOpState;
+}
 
-	/// timer-related
-	GSource								*timer;
-	gint								numberOfRetries;
-	gint								nWFAMaxRetries;
-	gint								nWFRMaxRetries;
-	gint 								nWFABaseTimeout;
-	gint 								nWFRBaseTimeout;
-	gfloat 								nWFAIncreaseTimeout;
-	gfloat 								nWFRIncreaseTimeout;
-	gboolean							(*OnWFAExpired)(gpointer data);
-	gboolean							(*OnWFRExpired)(gpointer data);
+guint
+IpcmdOpCtxIdHashfunc(gconstpointer key) {
+	IpcmdOpCtxId *opctx_id = (IpcmdOpCtxId*)key;
+	return (guint)(opctx_id->channel_id_ + opctx_id->sender_handle_id_);
+}
 
-	///callback functions
-	//IpcomOpCtxDestroyNotify			NotifyDestroyed;
-	//IpcomReceiveMessageCallback		recvCallback;
-	//void 								*cb_data;
+gboolean
+IpcmdOpCtxIdEqual(gconstpointer a, gconstpointer b) {
+	return !memcmp(a,b,sizeof(IpcmdOpCtxId)) ? TRUE : FALSE;
+}
 
-	struct ref							_ref;
-};
+gint
+IpcomOpCtxTrigger(IpcmdOpCtx *self, gint trigger, gpointer data)
+{
+
+}
+//gboolean									IpcomOpContextSetCallbacks(IpcomOpContext *opContext, IpcomReceiveMessageCallback recv_cb, IpcomOpCtxDestroyNotify OnNotify, void *userdata);
+
+gboolean
+IpcmdOpCtxStartWFATimer(IpcmdOpCtx *self)
+{
+
+}
+gboolean
+IpcmdOpCtxStartWFRTimer(IpcmdOpCtx *self)
+{
+}
+gboolean
+IpcmdOpCtxSetTimer(IpcmdOpCtx *self, gint milliseconds, GSourceFunc func);
+gboolean
+IpcmdOpCtxUnsetTimer(IpcmdOpCtx *self);
+gboolean
+IpcmdOpCtxCancelTimer(IpcmdOpCtx *self);
+
+IpcmdOpCtx*
+IpcmmOpCtxRef(IpcmdOpCtx *self)
+{
+
+}
+void
+IpcmdOpCtxUnref(IpcmdOpCtx *self)
+{
+
+}
+
 
 
