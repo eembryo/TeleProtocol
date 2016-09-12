@@ -8,17 +8,22 @@
 #ifndef INCLUDE_IPCMDSERVICE_H_
 #define INCLUDE_IPCMDSERVICE_H_
 
+#include "IpcmdDeclare.h"
 #include <glib.h>
 
 G_BEGIN_DECLS
 
-typedef struct _IpcmdService IpcmdService;
-
 struct _IpcmdService {
 	guint16		service_id_;
+	IpcmdServer	*server_;
 
 	void		(*ExecOperation)(OpHandle handle, const IpcmdOperation *opeartion);
 };
+
+gint		IpcmdServiceCompleteOperation(IpcmdService *self, OpHandle handle, const IpcmdOperationResult *result);
+gboolean	IpcmdServiceAddSubscriber(IpcmdService *self, guint16 operation_id, gboolean is_cyclic, const IpcmdHost *subscriber, gboolean is_static_member);
+void		IpcmdServiceInformNotification(IpcmdService *self, guint16 operation_id, gboolean is_cyclic, const IpcmdOperation *operation);
+void		IpcmdServiceRemoveSubscriber(IpcmdService *self, guint16 operation_id, gboolean is_cyclic, const IpcmdHost *subscriber);
 
 G_END_DECLS
 

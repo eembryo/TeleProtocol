@@ -9,24 +9,49 @@
 #define INCLUDE_IPCMDOPERATIONCONTEXT_H_
 
 #include "IpcmdDeclare.h"
+#include "IpcmdOperation.h"
+#include "reference.h"
+//#include "IpcmdOpStateMachine.h"
 #include <glib.h>
 
 G_BEGIN_DECLS
+
+enum _IpcmdOperationTrigger {
+	kIpcmdTriggerStart = 1,
+	kIpcmdTriggerRecvRequest=1,
+	kIpcmdTriggerRecvSetnor,
+	kIpcmdTriggerRecvSetreq,
+	kIpcmdTriggerRecvNotreq,
+	kIpcmdTriggerRecvAck,
+	kIpcmdTriggerRecvError,
+	kIpcmdTriggerStartAppProcess,
+	kIpcmdTriggerCompletedAppProcess,
+	kIpcmdTriggerSendRequest,
+	kIpcmdTriggerSendSetnor,
+	kIpcmdTriggerSendSetreq,
+	kIpcmdTriggerSendNotreq,
+	kIpcmdTriggerSendNotification,
+	kIpcmdTriggerWFATimeout,
+	kIpcmdTriggerWFRTimeout,
+	kIpcmdTriggerEnd,
+};
 
 struct _IpcmdOperationContextId {
 	IpcmdChannelId	channel_id_;
 	guint32			sender_handle_id_;
 } __attribute__ ((packed));
 
+static const IpcmdOpCtxId VoidOpCtxId;
+
 struct _IpcmdOperationContext {
-	struct _IpcmdOperationContextId		opctx_id_;
+	struct _IpcmdOperationContextId		opctx_id_;	// unique id for each operation context
 
 	/// operation information
 	guint16								serviceId;
 	guint16								operationId;
 	guint8								protoVersion;
 	guint8								opType;
-	//gboolean							procflag;
+	gboolean							procflag;
 	IpcmdMessage						*message;
 
 	/// operation state
@@ -44,10 +69,11 @@ struct _IpcmdOperationContext {
 	gboolean							(*OnWFAExpired)(gpointer data);
 	gboolean							(*OnWFRExpired)(gpointer data);
 
-	///callback functions
-	void								NotifyFinalize(IpcmdOpCtx opctx,gpointer cb_data);
+	/* callback functions */
+	IpcmdOperationResultCallback		deliver_to_app_;
+	void								(*NotifyFinalize)(IpcmdOpCtx opctx,gpointer cb_data);	// It will be invoked with 'cb_data' when the context reaches to FINALIZE state.
+	gpointer							cb_data;
 	//IpcomReceiveMessageCallback		recvCallback;
-	void 								*cb_data;
 
 	struct ref							_ref;
 };
@@ -65,7 +91,7 @@ gboolean									IpcmdOpCtxSetTimer(IpcmdOpCtx *opContext, gint milliseconds, GS
 gboolean									IpcmdOpCtxUnsetTimer(IpcmdOpCtx *opContext);
 gboolean									IpcmdOpCtxCancelTimer(IpcmdOpCtx *opContext);
 
-IpcmdOpCtx*									IpcmmOpCtxRef(IpcmdOpCtx *ctx);
+IpcmdOpCtx*									IpcmdOpCtxRef(IpcmdOpCtx *ctx);
 void										IpcmdOpCtxUnref(IpcmdOpCtx *ctx);
 
 inline gboolean

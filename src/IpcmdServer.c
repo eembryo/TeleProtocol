@@ -8,12 +8,16 @@
 #include "../include/IpcmdServer.h"
 #include "../include/IpcmdServerImpl.h"
 #include "../include/IpcmdBus.h"
+#include "../include/IpcmdOperationContext.h"
+#include "../include/IpcmdMessage.h"
+#include "../include/reference.h"
+#include "../include/IpcmdCore.h"
 #include <glib.h>
 
-#define IPCMD_SERVER_FROM_LISTENER(l) (container_of(l, struct _IpcmdServer, listener_)
+#define IPCMD_SERVER_FROM_LISTENER(l) (container_of(l, struct _IpcmdServer, listener_))
 
 static void _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data);
-static void _DestroyOpCtx (gpointer opctx);
+static void _RemoveOpCtx (gpointer opctx);
 
 gint
 IpcmdServerCompleteOperation(IpcmdServer *self, IpcmdOpCtxId opctx_id, const IpcmdOperationResult *result)
@@ -23,6 +27,12 @@ IpcmdServerCompleteOperation(IpcmdServer *self, IpcmdOpCtxId opctx_id, const Ipc
 	return 0;
 }
 
+/* IpcmdServerHandleMessage :
+ * handle REQUEST, SETREQUEST, SETREQUEST_NORETURN, NOTIFICATION_REQUEST, ACK and ERROR messages.
+ *
+ * return -1 when server cannot handle it.
+ * return 0 on successfully handled.
+ */
 gint
 IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMessage* mesg)
 {
@@ -41,8 +51,25 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 	// OperationID
 	// OperationType
 	// Length
-	// Busy
-	// Processing
+	/* Busy - REQPROD 347046
+	 * If the server is concurrently handling the maximum number of messages required
+	 * in [REQPROD347045], it shall respond with an ERROR message using the ErrorCode busy
+	 * (see table in [REQPROD347068]), to any new incomming messages.
+	 */
+	/* Processing - REQPROD 381391, REQPROD 346841
+	 * If the server is busy processing an operationID requested with the proc-flag
+	 * (decribed in [REQPROD381652]) set to 0x1 and the same operationID is requested
+	 * within a new message, it shall drop the newly received message and respond with
+	 * an ERROR message using the ErrorCode processing (see table in [REQPROD 347068])
+	 *
+	 * The server shall enter the processing state described in [REQPROD 381652] and
+	 * if the server receives a retransmission of such message, it shall respond with an
+	 * ERROR message sending error code processing. The client receiving an ERROR message
+	 * with error code processing will then know that the original message still is being
+	 * handled and valid
+	 */
+
+	// look up processing list
 
 	switch (IpcmdMessageGetVCCPDUOpType(mesg)) {
 	case IPCMD_OPTYPE_REQUEST:
@@ -125,32 +152,33 @@ IpcmdServiceUnregisterService(IpcmdServer *self, IpcmdService *service)
 void
 IpcmdServerInit(IpcmdServer *self, IpcmdCore *core)
 {
-	//self->operation_contexts_ = g_hash_table_new (hash_fn, key_equal_fn);
 	self->services_ = NULL;
 	self->core_ = core;
 	self->listener_.OnChannelEvent = _ReceiveChannelEvent;
-	self->operation_contexts_ = g_hash_table_new_full (IpcmdOpCtxIdHashfunc, IpcmdOpCtxIdEqual, NULL, _DestroyOpCtx);
-	IpcmdBusAddEventListener (IpcmdCoreGetBus(self->core_),self->listener_);
+	self->operation_contexts_ = g_hash_table_new_full (IpcmdOpCtxIdHashfunc, IpcmdOpCtxIdEqual, NULL, _RemoveOpCtx);
+	IpcmdBusAddEventListener (IpcmdCoreGetBus(self->core_),&self->listener_);
 }
 
 void
 IpcmdServerFinalize(IpcmdServer *self)
 {
-	IpcmdBusRemoveEventListener (IpcmdCoreGetBus(self->core_), self->listener_);
-	// finalize self->services_
+	IpcmdBusRemoveEventListener (IpcmdCoreGetBus(self->core_), &self->listener_);
+	// IMPL: finalize self->services_
+	// IMPL: free self->operation_contexts_;
 }
 
 static void
 _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data)
 {
-	IpcmdServer *server = IPCMD_SERVER_FROM_LISTNER(self);
+	IpcmdServer *server = IPCMD_SERVER_FROM_LISTENER(self);
 
+	// IMPL: whole function
 	g_debug("Got channel event: id=%d, type=%d", id, type);
 }
 
 
 static void
-_DestroyOpCtx (gpointer opctx)
+_RemoveOpCtx (gpointer opctx)
 {
 	IpcmdOpCtxUnref(opctx);
 }

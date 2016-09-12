@@ -14,12 +14,13 @@
 
 int main ()
 {
-	IpcmdCore 	*core = g_malloc(sizeof(IpcmdCore));
+	IpcmdCore 	*core;
 	IpcmdBus	*bus;
 	IpcmdTransport	*transport;
 	GMainLoop	*loop = g_main_loop_new (g_main_context_default(), FALSE);
 
-	IpcmdCoreInit (core, g_main_context_default());
+	//IpcmdCoreInit (core, g_main_context_default());
+	core = IpcmdCoreNew (g_main_context_default());
 	bus = IpcmdCoreGetBus (core);
 
 	transport = IpcmdTransportUdpv4New();

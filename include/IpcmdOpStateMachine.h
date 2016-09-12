@@ -13,8 +13,8 @@
 
 G_BEGIN_DECLS
 
-typedef struct _IpcomOpStateMachine IpcomOpStateMachine;
-typedef struct _IpcomOpState		IpcomOpState;
+typedef struct _IpcmdOpStateMachine IpcmdOpStateMachine;
+typedef struct _IpcmdOpState		IpcmdOpState;
 
 typedef enum {
 	OPCONTEXT_STATUS_START = 0,
@@ -65,7 +65,7 @@ typedef enum {
 struct _IpcomOpState {
 	IpcmdOpContextState		state_;
 	gint					fin_code_;
-	IpcomOpStateMachine*	pSM;
+	IpcmdOpStateMachine*	pSM;
 };
 
 typedef gint (*SMDoAction)(IpcomOpState *pOpState, IpcmdOpContextTriggers trigger, gpointer data);
@@ -79,9 +79,9 @@ typedef gint (*SMDoAction)(IpcomOpState *pOpState, IpcmdOpContextTriggers trigge
  * REQUEST: message from the client to the server invoking a operation.
  * RESPONSE: A message from the server to the client transporting the result of a operation invocation.
  */
-extern IpcomOpStateMachine SM_CLRO;		//Request Only / connectionless
-extern IpcomOpStateMachine SM_CLRR;		//Request and Response / connectionless
-extern IpcomOpStateMachine SM_CLNoti;	//Notification / connectionless
+extern IpcmdOpStateMachine SM_CLRO;		//Request Only / connectionless
+extern IpcmdOpStateMachine SM_CLRR;		//Request and Response / connectionless
+extern IpcmdOpStateMachine SM_CLNoti;	//Notification / connectionless
 
 //Initialize all StateMachines
 void IpcomOpStateMachineInit();

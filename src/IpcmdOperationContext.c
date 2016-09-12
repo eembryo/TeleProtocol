@@ -10,11 +10,16 @@
 #include "../include/IpcmdOpStateMachine.h"
 #include "IpcmdDeclare.h"
 #include <glib.h>
+#include <string.h>
+
+static const IpcmdOpCtxId VoidOpCtxId = {
+		.channel_id_ = 0,
+		.sender_handle_id_ = 0,
+};
 
 IpcmdOpCtx*
 IpcmdOpCtxNew()
 {
-
 }
 
 void
@@ -58,7 +63,7 @@ gboolean
 IpcmdOpCtxCancelTimer(IpcmdOpCtx *self);
 
 IpcmdOpCtx*
-IpcmmOpCtxRef(IpcmdOpCtx *self)
+IpcmdOpCtxRef(IpcmdOpCtx *self)
 {
 
 }

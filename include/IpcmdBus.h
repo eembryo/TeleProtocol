@@ -19,15 +19,23 @@ typedef enum {
 	kBusEventChannelStatusChange,
 } IpcmdBusEventType;
 
-typedef struct {
-	void (*OnChannelEvent)(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data);
-} IpcmdBusEventListener;
+struct _IpcmdBus {
+	GHashTable		*channels_;				// key: positive integer, value: IpcmdChannel*
+	GList			*transports_;			// data: IpcmdTransport*
+	guint16			last_alloc_channel_id_;	// the last allocated channel id
+	GList			*event_listeners_;		// data: IpcmdBusEventListener*
+	IpcmdCore		*core_;
+};
 
-gboolean 	IpcmdBusAddEventListener(IpcmdBus *self, const IpcmdBusEventListener *listener);
-void		IpcmdBusRemoveEventListener(IpcmdBus *self, const IpcmdBusEventListener *listener);
+struct _IpcmdBusEventListener{
+	void (*OnChannelEvent)(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data);
+};
+
+gboolean 	IpcmdBusAddEventListener(IpcmdBus *self, IpcmdBusEventListener *listener);
+void		IpcmdBusRemoveEventListener(IpcmdBus *self, IpcmdBusEventListener *listener);
 void 		IpcmdBusNotifyChannelEvent(IpcmdBus *self, IpcmdChannelId id, const IpcmdBusEventType ev_type, gconstpointer ev_data);
 
-void 		IpcmdBusInit(IpcmdBus *self);
+void 		IpcmdBusInit(IpcmdBus *self,IpcmdCore *core);
 void 		IpcmdBusFinalize(struct _IpcmdBus *self);
 IpcmdChannel*	IpcmdBusFindChannelById(IpcmdBus *self, IpcmdChannelId id);
 guint16 	IpcmdBusRegisterChannel(IpcmdBus *self, IpcmdChannel *channel);

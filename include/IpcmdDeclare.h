@@ -17,6 +17,7 @@ typedef guint16					IpcmdChannelId;
 typedef struct _IpcmdChannel	IpcmdChannel;
 // IpcmdBus.h
 typedef struct _IpcmdBus 		IpcmdBus;
+typedef struct _IpcmdBusEventListener	IpcmdBusEventListener;
 // IpcmdMessage.h
 typedef struct _IpcmdMessage 	IpcmdMessage;
 // IpcmdHost.h
@@ -27,7 +28,19 @@ typedef struct _IpcmdTransport 	IpcmdTransport;
 typedef struct _IpcmdOperationContextId	IpcmdOpCtxId;
 typedef struct _IpcmdOperationContext	IpcmdOpCtx;
 // IpcmdOpState.h
-typedef struct _IpcomOpState IpcomOpState;
+typedef struct _IpcomOpState 	IpcomOpState;
 // IpcmdServer.h
-typedef struct _IpcmdServer IpcmdServer;
+typedef struct _IpcmdServer		IpcmdServer;
+// IpcmdClient.h
+typedef struct _IpcmdClient IpcmdClient;
+// IpcmdOperation.h
+typedef gconstpointer					OpHandle;			// OpHandle indicates the memory address of IpcmdOpCtx
+typedef struct _IpcmdOperation 			IpcmdOperation;
+typedef struct _IpcmdOperationResult	IpcmdOperationResult;
+typedef struct _IpcmdPayloadData		IpcmdPayloadData;
+typedef struct _IpcmdOperationResultNotification	IpcmdOperationResultNotification;
+typedef struct _IpcmdOperationResultCallback 		IpcmdOperationResultCallback;
+// IpcmdService.h
+typedef struct _IpcmdService IpcmdService;
+
 #endif /* INCLUDE_IPCMDDECLARE_H_ */

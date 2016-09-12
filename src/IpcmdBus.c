@@ -16,14 +16,6 @@
 #define MAX_N_OF_CHANNELS	1024
 #define INVALID_CHANNEL_ID	0	//channel number '0' is used for error.
 
-struct _IpcmdBus {
-	GHashTable		*channels_;				// key: positive integer, value: IpcmdChannel*
-	GList			*transports_;			// data: IpcmdTransport*
-	guint16			last_alloc_channel_id_;	// the last allocated channel id
-	GList			*event_listeners_;		// data: IpcmdBusEventListener*
-	IpcmdCore		*core_;
-};
-
 static void _NotifyChannelEvent(IpcmdBus *self, IpcmdChannelId id, const IpcmdBusEventType ev_type, gconstpointer ev_data);
 static guint16 _GetSpareChannelId(struct _IpcmdBus *self);
 static void _OnRemoveChannelFromHashtable(IpcmdChannel *channel);
@@ -232,7 +224,7 @@ IpcmdBusRx(IpcmdBus *self, IpcmdChannelId channel_id, IpcmdMessage *mesg)
  * return FALSE on failure
  */
 gboolean
-IpcmdBusAddEventListener(IpcmdBus *self, const IpcmdBusEventListener *listener)
+IpcmdBusAddEventListener(IpcmdBus *self, IpcmdBusEventListener *listener)
 {
 	GList *l = g_list_find (self->event_listeners_, listener);
 	if (l) {
@@ -251,7 +243,7 @@ IpcmdBusAddEventListener(IpcmdBus *self, const IpcmdBusEventListener *listener)
  * @listener: event listener
  */
 void
-IpcmdBusRemoveEventListener(IpcmdBus *self, const IpcmdBusEventListener *listener)
+IpcmdBusRemoveEventListener(IpcmdBus *self, IpcmdBusEventListener *listener)
 {
 	self->event_listeners_ = g_list_remove (self->event_listeners_, listener);
 }
@@ -270,6 +262,6 @@ _NotifyChannelEvent(IpcmdBus *self, IpcmdChannelId id, const IpcmdBusEventType e
 	GList *l;
 
 	for (l = self->event_listeners_; l != NULL; l = l->next) {
-		((IpcmdBusEventListener*)(l->data))->OnChannelEvent (l->data, ev_type, ev_data);
+		((IpcmdBusEventListener*)(l->data))->OnChannelEvent (l->data, id, ev_type, ev_data);
 	}
 }

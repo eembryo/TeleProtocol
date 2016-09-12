@@ -9,12 +9,15 @@
 #define INCLUDE_IPCMDCORE_H_
 
 #include <glib.h>
-#include "reference.h"
+//#include "reference.h"
 #include "IpcmdDeclare.h"
 
 G_BEGIN_DECLS
 
+IpcmdCore*		IpcmdCoreNew(GMainContext *context);
 void			IpcmdCoreInit(IpcmdCore *self, GMainContext *context);
+void			IpcmdCoreFree(IpcmdCore *self);
+void			IpcmdCoreFinalize(IpcmdCore *self);
 IpcmdBus*		IpcmdCoreGetBus(IpcmdCore *self);
 GMainContext*	IpcmdCoreGetGMainContext(IpcmdCore *self);
 void			IpcmdCoreDispatch(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg);

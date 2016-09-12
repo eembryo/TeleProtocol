@@ -4,6 +4,10 @@ set(SRCS
 	IpcmdHost.c
 	IpcmdChannel.c
 	IpcmdMessage.c
+	IpcmdClient.c
+	IpcmdOperation.c
+	IpcmdOperationContext.c
+	IpcmdServer.c
 	IpcmdTransportUdpv4.c
 	NetifcMonitor.c
 	SocketUtils.c

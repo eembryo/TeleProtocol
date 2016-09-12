@@ -8,9 +8,12 @@
 
 #include "../include/IpcmdCore.h"
 #include "../include/IpcmdServer.h"
+#include "../include/IpcmdClient.h"
 #include "../include/IpcmdServerImpl.h"
 #include "../include/IpcmdMessage.h"
 #include "../include/IpcmdBus.h"
+#include "../include/IpcmdOperationContext.h"
+
 #include <glib.h>
 
 struct _IpcmdCore {
@@ -21,13 +24,30 @@ struct _IpcmdCore {
 	GHashTable		*operation_contexts_;
 };
 
-static void _DestroyOpCtx(gpointer opctx);
+static void _RemoveOpCtx(gpointer opctx);
+
+IpcmdCore *
+IpcmdCoreNew(GMainContext *context)
+{
+	IpcmdCore *core = g_malloc0(sizeof(struct _IpcmdCore));
+
+	if (!core) return NULL;
+	IpcmdCoreInit(core, context);
+	return core;
+}
+
+void
+IpcmdCoreFree(IpcmdCore *self)
+{
+	IpcmdCoreFinalize(self);
+	g_free(self);
+}
 
 void
 IpcmdCoreInit(IpcmdCore *self, GMainContext *context)
 {
 	self->main_context = context;
-	self->operation_contexts_ = g_hash_table_new_full(IpcmdOpCtxIdHashfunc, IpcmdOpCtxIdEqual, NULL, _DestroyOpCtx);
+	self->operation_contexts_ = g_hash_table_new_full(IpcmdOpCtxIdHashfunc, IpcmdOpCtxIdEqual, NULL, _RemoveOpCtx);
 	self->clients_ = NULL;
 
 	/* initialize bus */
@@ -39,23 +59,11 @@ IpcmdCoreInit(IpcmdCore *self, GMainContext *context)
 void
 IpcmdCoreFinalize(IpcmdCore *self)
 {
-	// IMPL: free self->operation_contexts_
+	IpcmdServerFinalize (&self->server_);
 	// IMPL: free self->clients_
-	// g_list_free (self->clients_);
-	IpcmdServerFinalize (self->server_);
-	IpcmdBusFinalize (self->bus_);
-}
+	// IMPL: free self->operation_contexts_
 
-gboolean
-IpcmdCoreRegisterClient(IpcmdCore *self, IpcmdClient *client)
-{
-	GList *l = g_list_find (self->clients_, client);
-
-	if (l) return TRUE;
-
-	self->clients_ = g_list_append (self->clients_, client);
-
-	return TRUE;
+	IpcmdBusFinalize (&self->bus_);
 }
 
 void
@@ -67,6 +75,7 @@ IpcmdCoreUnregisterClient(IpcmdCore *self, IpcmdClient *client)
 void
 IpcmdCoreDispatch(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg)
 {
+	// IMPL: whole function
 	g_message ("%s: channel_id = %d", __func__, channel_id);
 }
 
@@ -132,7 +141,7 @@ IpcmdCoreRegisterClient(IpcmdCore *self, IpcmdClient *client)
 	GList *l;
 
 	for (l = self->clients_; l != NULL; l = l->next) {
-		if ( ((IpcmdClient*)l->data)->service_id_ == client->service_id_ ) {	// each client has different service_id
+		if ( IpcmdClientGetServiceid((IpcmdClient*)l->data) == IpcmdClientGetServiceid(client) ) {	// each client has different service_id
 			return FALSE;
 		}
 	}
@@ -141,16 +150,8 @@ IpcmdCoreRegisterClient(IpcmdCore *self, IpcmdClient *client)
 	return TRUE;
 }
 
-void
-IpcmdCoreUnregisterClient(IpcmdCore *self, IpcmdClient *client)
-{
-	g_list_remove (self->clients_, client);
-}
-
 static void
-_DestroyOpCtx(gpointer opctx)
+_RemoveOpCtx(gpointer opctx)
 {
-	// reference count of 'opctx' should be 1
-	// ensure that (((IpcmdOpCtx*)opctx)->_ref->count == 1) is TRUE
 	IpcmdOpCtxUnref((IpcmdOpCtx*)opctx);
 }
