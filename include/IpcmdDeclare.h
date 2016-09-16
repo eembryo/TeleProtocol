@@ -10,6 +10,8 @@
 
 #include <glib.h>
 
+G_BEGIN_DECLS
+
 // IpcmdCore.h
 typedef struct _IpcmdCore 		IpcmdCore;
 // IpcmdChannel.h
@@ -42,5 +44,7 @@ typedef struct _IpcmdOperationResultNotification	IpcmdOperationResultNotificatio
 typedef struct _IpcmdOperationResultCallback 		IpcmdOperationResultCallback;
 // IpcmdService.h
 typedef struct _IpcmdService IpcmdService;
+
+G_END_DECLS
 
 #endif /* INCLUDE_IPCMDDECLARE_H_ */
