@@ -17,12 +17,12 @@ struct _IpcmdService {
 	guint16		service_id_;
 	IpcmdServer	*server_;
 
-	void		(*ExecOperation)(OpHandle handle, const IpcmdOperation *opeartion);
+	void		(*ExecOperation)(OpHandle handle, const IpcmdOperationInfo *opeartion);
 };
 
-gint		IpcmdServiceCompleteOperation(IpcmdService *self, OpHandle handle, const IpcmdOperationResult *result);
+gint		IpcmdServiceCompleteOperation(IpcmdService *self, OpHandle handle, const IpcmdOperationInfo *result);
 gboolean	IpcmdServiceAddSubscriber(IpcmdService *self, guint16 operation_id, gboolean is_cyclic, const IpcmdHost *subscriber, gboolean is_static_member);
-void		IpcmdServiceInformNotification(IpcmdService *self, guint16 operation_id, gboolean is_cyclic, const IpcmdOperation *operation);
+void		IpcmdServiceInformNotification(IpcmdService *self, guint16 operation_id, gboolean is_cyclic, const IpcmdOperationInfo *operation);
 void		IpcmdServiceRemoveSubscriber(IpcmdService *self, guint16 operation_id, gboolean is_cyclic, const IpcmdHost *subscriber);
 
 G_END_DECLS

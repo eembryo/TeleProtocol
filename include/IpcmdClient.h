@@ -15,8 +15,8 @@ G_BEGIN_DECLS
 
 guint16		IpcmdClientGetServiceid(IpcmdClient *self);
 gint		IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMessage *mesg);
-OpHandle	IpcmdClientInvokeOperation(IpcmdClient *self, const IpcmdOperation *operation, const IpcmdOperationResultCallback *cb);
-gint		IpcmdClientSubscribeNotification(IpcmdClient *self, guint16 operation_id, gboolean is_cyclic, const IpcmdOperationResultCallback *cb);
+OpHandle	IpcmdClientInvokeOperation(IpcmdClient *self, guint16 operation_id, guint8 op_type, guint8 flags, const IpcmdOperationPayload *payload, const IpcmdOperationCallback *cb);
+gint		IpcmdClientSubscribeNotification(IpcmdClient *self, guint16 operation_id, gboolean is_cyclic, const IpcmdOperationCallback *cb);
 void		IpcmdClientUnsubscribeNotification(IpcmdClient *self, guint16 operation_id);
 void		IpcmdClientFinalize (IpcmdClient *self);
 

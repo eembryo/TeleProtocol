@@ -21,6 +21,7 @@ struct _IpcmdClient {
 	GHashTable		*operation_contexts_;
 	GList			*subscribed_notifications_;
 	guint16			service_id_;
+	guint8			seq_num_;
 	IpcmdCore		*core_;
 	IpcmdBusEventListener	listener_;
 };
@@ -30,7 +31,7 @@ struct _SubscribedNotification {
 	guint16		service_id_;
 	guint16		operation_id_;
 	gboolean	is_cyclic_;
-	IpcmdOperationResultCallback	cb_;
+	IpcmdOperationCallback	cb_;
 };
 
 #define IPCMD_CLIENT_FROM_LISTENER(l) (container_of(l, struct _IpcmdClient, listener_))
@@ -68,6 +69,7 @@ IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMess
 	case IPCMD_OPTYPE_NOTIFICATION:
 	case IPCMD_OPTYPE_NOTIFICATION_CYCLIC:
 	{
+#if 0
 		GList *sub_list;
 		IpcmdOperationResultNotification noti_result = {
 				.parent_.result_type_ = OPERATION_RESULT_NOTIFICATION,
@@ -92,6 +94,7 @@ IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMess
 			}
 		}
 		g_list_free(sub_list);
+#endif
 	}
 		break;
 	case IPCMD_OPTYPE_ACK:
@@ -116,12 +119,62 @@ IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMess
  * create IP COMMAND message and send it to bus.
  */
 OpHandle
-IpcmdClientInvokeOperation(IpcmdClient *self, const IpcmdOperation *operation, const IpcmdOperationResultCallback *cb)
+IpcmdClientInvokeOperation(IpcmdClient *self, guint16 operation_id, guint8 op_type, guint8 flags, const IpcmdOperationPayload *payload, const IpcmdOperationCallback *cb)
 {
-	// 1. allocate IpcmdOpCtx from core
-	// 2. set up IpcmdOpCtx and add it to self->contexts_
-	// 3. trigger SEND_{REQUEST,SETREQUEST,SETREQUEST_NORETURN, NOTIFICATION_REQUEST} to IpcmdOpCtx
-	return NULL;
+	IpcmdOpCtx *ctx;
+	IpcmdOperationInfoInvokeMessage info;
+	gint	ret;
+	guint8	num;
+	IpcmdOpCtxId	opctx_id;
+
+	if (self->channel_id_ == 0) { // there is no active channel
+		return NULL;
+	}
+
+	// 1. allocate IpcmdOpCtx from core and setup it
+	opctx_id.channel_id_ = self->channel_id_;
+	for (num = self->seq_num_+1; num != self->seq_num_; num++) {
+		opctx_id.sender_handle_id_ = BUILD_SENDERHANDLEID(self->service_id_, operation_id, op_type, num);
+		ctx = IpcmdCoreAllocOpCtx(self->core_, opctx_id);
+		if (ctx) {
+			self->seq_num_ = num;
+			break;
+		}
+	}
+	if (!ctx) return NULL; // not enough memory or sequence number is exhausted.
+
+	ctx->serviceId = self->service_id_;
+	ctx->operationId = operation_id;
+	ctx->protoVersion = IPCMD_PROTOCOL_VERSION;
+	ctx->opType = op_type;
+	ctx->flags = flags;
+	ctx->deliver_to_app_ = *cb;
+	// IMPL: ctx->notify_finalizing_ =
+	//ctx->nWFABaseTimeout = ;
+	//ctx->nWFAIncreaseTimeout = ;
+	//ctx->nWFAMaxRetries = ;
+	//ctx->nWFRBaseTimeout = ;
+	//ctx->nWFRIncreaseTimeout = ;
+	//ctx->nWFRMaxRetries = ;
+
+	// 2. add IpcmdOpCtx to self->contexts_
+	g_hash_table_insert (self->operation_contexts_, &ctx->opctx_id_,ctx);
+
+	// 3. trigger
+	info.parent_.type_ = kOperationInfoInvokeMessage;
+	info.header_.op_type_ = op_type;
+	info.header_.flags_ = flags;
+	info.header_.operation_id_ = operation_id;
+	info.header_.service_id_ = self->service_id_;
+	info.payload_ = *payload;
+
+	ret = IpcomOpCtxTrigger (ctx, kIpcmdTriggerSendRequest, (const IpcmdOperationInfo*)&info);
+	if (ret < 0) {	//failed to send request
+		//IMPL: need to report error message
+		return NULL;
+	}
+
+	return ctx;
 }
 
 /******************************************************************************************************
@@ -134,7 +187,7 @@ IpcmdClientInvokeOperation(IpcmdClient *self, const IpcmdOperation *operation, c
  * return 0 on successfully subscribed
  ******************************************************************************************************/
 gint
-IpcmdClientSubscribeNotification(IpcmdClient *self, guint16 operation_id, gboolean is_cyclic, const IpcmdOperationResultCallback *cb)
+IpcmdClientSubscribeNotification(IpcmdClient *self, guint16 operation_id, gboolean is_cyclic, const IpcmdOperationCallback *cb)
 {
 	SubscribedNotification *new_sn;
 	//GList *l;
@@ -168,7 +221,7 @@ IpcmdClientUnsubscribeNotification(IpcmdClient *self, guint16 operation_id)
 		if (((SubscribedNotification*)l->data)->operation_id_ == operation_id) {
 			self->subscribed_notifications_ = g_list_remove_link (self->subscribed_notifications_,l);
 			sn = l->data;
-			IpcmdOperationResultCallbackClear(&sn->cb_);
+			IpcmdOperationCallbackClear(&sn->cb_);
 			g_free(sn);
 			g_list_free(l);
 		}
@@ -182,6 +235,7 @@ IpcmdClientInit (IpcmdClient *self, IpcmdCore *core)
 	self->operation_contexts_ = NULL;
 	self->service_id_ = 0;
 	self->channel_id_ = 0;
+	self->seq_num_ = 0;
 	self->core_ = core;
 	self->listener_.OnChannelEvent = _ReceiveChannelEvent;
 	IpcmdBusAddEventListener (IpcmdCoreGetBus(self->core_),&self->listener_);

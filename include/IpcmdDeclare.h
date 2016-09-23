@@ -12,6 +12,8 @@
 
 G_BEGIN_DECLS
 
+#define IPCMD_PROTOCOL_VERSION 0x03
+
 // IpcmdCore.h
 typedef struct _IpcmdCore 		IpcmdCore;
 // IpcmdChannel.h
@@ -36,12 +38,17 @@ typedef struct _IpcmdServer		IpcmdServer;
 // IpcmdClient.h
 typedef struct _IpcmdClient IpcmdClient;
 // IpcmdOperation.h
-typedef gconstpointer					OpHandle;			// OpHandle indicates the memory address of IpcmdOpCtx
-typedef struct _IpcmdOperation 			IpcmdOperation;
-typedef struct _IpcmdOperationResult	IpcmdOperationResult;
-typedef struct _IpcmdPayloadData		IpcmdPayloadData;
-typedef struct _IpcmdOperationResultNotification	IpcmdOperationResultNotification;
-typedef struct _IpcmdOperationResultCallback 		IpcmdOperationResultCallback;
+typedef gconstpointer						OpHandle;			// OpHandle indicates the memory address of IpcmdOpCtx
+typedef struct _IpcmdOperationHeader		IpcmdOperationHeader;
+typedef struct _IpcmdOperationPayload		IpcmdOperationPayload;
+
+typedef struct _IpcmdOperationInfo			IpcmdOperationInfo;
+typedef struct _IpcmdOperationInfoOk		IpcmdOperationInfoOk;
+typedef struct _IpcmdOperationInfoFail		IpcmdOperationInfoFail;
+typedef struct _IpcmdOperationInfoReceivedMessage	IpcmdOperationInfoReceivedMessage;
+typedef struct _IpcmdOperationInfoReplyMessage		IpcmdOperationInfoReplyMessage;
+typedef struct _IpcmdOperationInfoInvokeMessage		IpcmdOperationInfoInvokeMessage;
+typedef struct _IpcmdOperationCallback		IpcmdOperationCallback;
 // IpcmdService.h
 typedef struct _IpcmdService IpcmdService;
 

@@ -9,6 +9,9 @@ set(SRCS
 	IpcmdOperationContext.c
 	IpcmdServer.c
 	IpcmdTransportUdpv4.c
+	IpcmdOpStateMachine.c
+	IpcmdOpStateMachineCLRequest.c
+	IpcmdConfig.c
 	NetifcMonitor.c
 	SocketUtils.c
    )

@@ -13,70 +13,78 @@
 
 G_BEGIN_DECLS
 
-enum IpcmdOperationResultType {
-	OPERATION_RESULT_OK,
-	OPERATION_RESULT_ERROR,
-	OPERATION_RESULT_RESPONSE,
-	OPERATION_RESULT_FAIL,
-	OPERATION_RESULT_NOTIFICATION,
+enum IpcmdOperationInfoType {
+	kOperationInfoOk,		// the message is successfully processed. Application receives this type of operation info.
+	kOperationInfoFail,		// the message is not processed properly. Application receives this type of operation info.
+	kOperationInfoReceivedMessage,
+	kOperationInfoReplyMessage,
+	kOperationInfoInvokeMessage,
 };
 
-struct _IpcmdPayloadData {
+struct _IpcmdOperationPayload {
 	guint8		type_;	//'data_' encoding type: 0 on encoded message, 1 on Normal message
 	guint32		length_;
 	gpointer	data_;
 };
 
-struct _IpcmdOperation {
+struct _IpcmdOperationHeader {
 	guint16	service_id_;
 	guint16 operation_id_;
 	guint32 sender_handle_id_;
 	guint8	op_type_;
 	guint8	flags_;
-	IpcmdPayloadData	*payload_data_;
 };
 
-struct _IpcmdOperationResult {
-//	OpHandle						handle_;
-	enum IpcmdOperationResultType	result_type_;
+struct _IpcmdOperationInfo {
+	enum IpcmdOperationInfoType		type_;
 };
 
-struct _IpcmdOperationResultError {
-	struct _IpcmdOperationResult	parent_;
-	guint8							error_code_;
-	guint16							error_info_;
+struct _IpcmdOperationInfoInvokeMessage {
+	struct _IpcmdOperationInfo parent_;
+	struct _IpcmdOperationHeader	header_;
+	struct _IpcmdOperationPayload	payload_;
 };
 
-struct _IpcmdOperationResultResponse {
-	struct _IpcmdOperationResult	parent_;
-	struct _IpcmdPayloadData		response_;
+struct _IpcmdOperationInfoReplyMessage {
+	struct _IpcmdOperationInfo parent_;
+	guint8							op_type_;
+	struct _IpcmdOperationPayload	payload_;
 };
 
-struct _IpcmdOperationResultFail {
-	struct _IpcmdOperationResult	parent_;
+struct _IpcmdOperationInfoReceivedMessage {
+	struct _IpcmdOperationInfo		parent_;
+	//struct _IpcmdOperationHeader	header_;
+	//struct _IpcmdOperationPayload	payload_;
+	IpcmdMessage					*raw_message_;
+	IpcmdHost	*sender_;
+};
+
+struct _IpcmdOperationInfoFail {
+	struct _IpcmdOperationInfo		parent_;
 	guint							reason_;
 };
 
-struct _IpcmdOperationResultNotification {
-	struct _IpcmdOperationResult	parent_;
-	IpcmdOperation					notification_;
+struct _IpcmdOperationInfoOk {
+	struct _IpcmdOperationInfo		parent_;
 };
 
-struct _IpcmdOperationResultCallback {
-	gint		(*cb_func)(OpHandle handle, const IpcmdOperationResult *result, gpointer cb_data);
+
+struct _IpcmdOperationCallback {
+	gint		(*cb_func)(OpHandle handle, const IpcmdOperationInfo *result, gpointer cb_data);
 	/* cb_destroy :
 	 * called to release cb_data memory when IpcmdOperationResultCallback is destroyed. If it is NULL, 'cb_data' is not released.
 	 */
 	gint		(*cb_destroy)(gpointer cb_data);
 	gpointer	cb_data;
 };
-static inline void IpcmdOperationResultCallbackClear(IpcmdOperationResultCallback *cb) {
+
+static inline void IpcmdOperationCallbackClear(IpcmdOperationCallback *cb) {
 	if (cb->cb_destroy)	cb->cb_destroy (cb->cb_data);
 	cb->cb_func = NULL;
 	cb->cb_destroy = NULL;
 	cb->cb_data = NULL;
 }
-static inline void IpcmdOperationResultCallbackFree(IpcmdOperationResultCallback *cb) {
+static inline void IpcmdOperationCallbackFree(IpcmdOperationCallback *cb) {
 	if (cb->cb_destroy)	cb->cb_destroy (cb->cb_data);
 	g_free(cb);
 }

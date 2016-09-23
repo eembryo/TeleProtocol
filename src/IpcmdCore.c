@@ -103,30 +103,27 @@ IpcmdCoreGetGMainContext(IpcmdCore *self)
  *
  * @ self:
  * @ opctx_id: requested operation context id by IpcmdClient or IpcmdServer
- * @ ret_opctx: Allocated IpcmdOpCtx is set to *ret_opctx
  *
- * return 0 on success
- * return -1 when memory is not enough
- * return -2 when 'opctx_id' is already in use
+ * return NULL on failed
+ * return allocated IpcmdOpCtx *
  */
-gint
-IpcmdCoreAllocOpCtx(IpcmdCore *self, IpcmdOpCtxId opctx_id, IpcmdOpCtx **ret_opctx)
+IpcmdOpCtx *
+IpcmdCoreAllocOpCtx(IpcmdCore *self, IpcmdOpCtxId opctx_id)
 {
 	IpcmdOpCtx *opctx;
 
 	if (g_hash_table_contains (self->operation_contexts_, (gconstpointer)&opctx_id)) { // opctx_id is already in use
-		return -2;
+		return NULL;
 	}
 
 	opctx = IpcmdOpCtxNew();
 	if (!opctx) { // not enough memory
-		return -1;
+		return NULL;
 	}
 	opctx->opctx_id_ = opctx_id;
 	g_hash_table_insert (self->operation_contexts_, (gpointer)&opctx->opctx_id_, opctx);
 
-	*ret_opctx = IpcmdOpCtxRef (opctx);
-	return 0;
+	return IpcmdOpCtxRef (opctx);
 }
 
 void

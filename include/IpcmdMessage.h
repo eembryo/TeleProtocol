@@ -97,6 +97,8 @@ static inline guint8 	IpcmdMessageGetVCCPDUDataType(IpcmdMessage *mesg)
 {	return mesg->vccpdu_ptr->dataType;}
 static inline guint8 	IpcmdMessageGetVCCPDUReserved(IpcmdMessage *mesg)
 {	return mesg->vccpdu_ptr->reserved;}
+static inline guint8 	IpcmdMessageGetVCCPDUFlags(IpcmdMessage *mesg)
+{	return mesg->vccpdu_ptr->reserved;}
 static inline void		IpcmdMessageSetLength(IpcmdMessage *mesg, guint length)
 {	mesg->mesg_length = length; }
 static inline guint32	IpcmdMessageGetLength(IpcmdMessage *mesg)

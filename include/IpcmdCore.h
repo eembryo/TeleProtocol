@@ -22,7 +22,7 @@ IpcmdBus*		IpcmdCoreGetBus(IpcmdCore *self);
 GMainContext*	IpcmdCoreGetGMainContext(IpcmdCore *self);
 void			IpcmdCoreDispatch(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg);
 gint			IpcmdCoreTransmit(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg);
-gint			IpcmdCoreAllocOpCtx(IpcmdCore *self, IpcmdOpCtxId opctx_id, IpcmdOpCtx **ret_opctx);
+IpcmdOpCtx*		IpcmdCoreAllocOpCtx(IpcmdCore *self, IpcmdOpCtxId opctx_id);
 void			IpcmdCoreReleaseOpCtx(IpcmdCore *self, IpcmdOpCtxId opctx_id);
 gboolean		IpcmdCoreRegisterClient(IpcmdCore *self, IpcmdClient *client);
 void			IpcmdCoreUnregisterClient(IpcmdCore *self, IpcmdClient *client);

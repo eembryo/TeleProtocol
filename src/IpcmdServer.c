@@ -20,10 +20,10 @@ static void _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id,
 static void _RemoveOpCtx (gpointer opctx);
 
 gint
-IpcmdServerCompleteOperation(IpcmdServer *self, IpcmdOpCtxId opctx_id, const IpcmdOperationResult *result)
+IpcmdServerCompleteOperation(IpcmdServer *self, IpcmdOpCtxId opctx_id, const IpcmdOperationInfo *info)
 {
 	//1. find opctx
-	//2. trigger PROCESSDONE to opctx with result
+	//2. trigger kIpcmdTriggerCompletedAppProcess to opctx with result
 	return 0;
 }
 
@@ -37,7 +37,6 @@ gint
 IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMessage* mesg)
 {
 	IpcmdOpCtx 		*opctx = NULL;
-	gint			ret;
 	IpcmdOpCtxId	opctx_id = {
 			.channel_id_ = channel_id,
 			.sender_handle_id_ = IpcmdMessageGetVCCPDUSenderHandleID(mesg)
@@ -73,36 +72,36 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 
 	switch (IpcmdMessageGetVCCPDUOpType(mesg)) {
 	case IPCMD_OPTYPE_REQUEST:
-		ret = IpcmdCoreAllocOpCtx (self->core_, opctx_id, &opctx);
-		if (!ret) { // failed to allocate opctx
-			g_warning("failed to allocate operation context: %d", ret);
+		opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+		if (!opctx) { // failed to allocate opctx
+			g_warning("failed to allocate operation context:");
 			goto _HandleMessage_failed;
 		}
 		//1. initialize opctx
 		//2. trigger RECV-REQUEST to opctx
 		break;
 	case IPCMD_OPTYPE_SETREQUEST_NORETURN:
-		ret = IpcmdCoreAllocOpCtx (self->core_, opctx_id, &opctx);
-		if (!ret) { // failed to allocate opctx
-			g_warning("failed to allocate operation context: %d", ret);
+		opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+		if (!opctx) { // failed to allocate opctx
+			g_warning("failed to allocate operation context:");
 			goto _HandleMessage_failed;
 		}
 		//1. initialize opctx
 		//2. trigger RECV-SETNOR to opctx
 		break;
 	case IPCMD_OPTYPE_SETREQUEST:
-		ret = IpcmdCoreAllocOpCtx (self->core_, opctx_id, &opctx);
-		if (!ret) { // failed to allocate opctx
-			g_warning("failed to allocate operation context: %d", ret);
+		opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+		if (!opctx) { // failed to allocate opctx
+			g_warning("failed to allocate operation context:");
 			goto _HandleMessage_failed;
 		}
 		//1. initialize opctx
 		//2. trigger RECV-SETREQ to opctx
 		break;
 	case IPCMD_OPTYPE_NOTIFICATION_REQUEST:
-		ret = IpcmdCoreAllocOpCtx (self->core_, opctx_id, &opctx);
-		if (!ret) { // failed to allocate opctx
-			g_warning("failed to allocate operation context: %d", ret);
+		opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+		if (!opctx) { // failed to allocate opctx
+			g_warning("failed to allocate operation context:");
 			goto _HandleMessage_failed;
 		}
 		//1. initialize opctx
@@ -170,7 +169,7 @@ IpcmdServerFinalize(IpcmdServer *self)
 static void
 _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data)
 {
-	IpcmdServer *server = IPCMD_SERVER_FROM_LISTENER(self);
+	//IpcmdServer *server = IPCMD_SERVER_FROM_LISTENER(self);
 
 	// IMPL: whole function
 	g_debug("Got channel event: id=%d, type=%d", id, type);

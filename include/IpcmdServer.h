@@ -17,7 +17,7 @@ void		IpcmdServerInit(IpcmdServer *self, IpcmdCore *core);
 void		IpcmdServerFinalize(IpcmdServer *self);
 gboolean	IpcmdServerRegisterService(IpcmdServer *self, IpcmdService *service);
 void		IpcmdServerUnregisterService(IpcmdServer *self, IpcmdService *service);
-gint		IpcmdServerCompleteOperation(IpcmdServer *self, IpcmdOpCtxId opctx_id, const IpcmdOperationResult *result);
+gint		IpcmdServerCompleteOperation(IpcmdServer *self, IpcmdOpCtxId opctx_id, const IpcmdOperationInfo *info);
 gint		IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMessage* mesg);
 
 G_END_DECLS
