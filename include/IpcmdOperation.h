@@ -14,11 +14,11 @@
 G_BEGIN_DECLS
 
 enum IpcmdOperationInfoType {
-	kOperationInfoOk,		// the message is successfully processed. Application receives this type of operation info.
-	kOperationInfoFail,		// the message is not processed properly. Application receives this type of operation info.
-	kOperationInfoReceivedMessage,
-	kOperationInfoReplyMessage,
-	kOperationInfoInvokeMessage,
+	kOperationInfoOk,		// the message is successfully processed. It may sent from IpcmdCore to application or vice versa.
+	kOperationInfoFail,		// the message is not processed properly. It may sent from IpcmdCore to application or vice versa.
+	kOperationInfoReceivedMessage,	// the received message. It is sent from IpcmdCore to application.
+	kOperationInfoReplyMessage,		// the response message from application. It is sent from application to IpcmdCore.
+	kOperationInfoInvokeMessage,	// invocation message from application. It is sent from application to IpcmdCore.
 };
 
 struct _IpcmdOperationPayload {
@@ -68,9 +68,14 @@ struct _IpcmdOperationInfoOk {
 	struct _IpcmdOperationInfo		parent_;
 };
 
+static inline void IpcmdOperationInfoOkInit (IpcmdOperationInfoOk *info) { info->parent_.type_ = kOperationInfoOk;}
+static inline void IpcmdOperationInfoFailInit (IpcmdOperationInfoFail *info) { info->parent_.type_ = kOperationInfoFail;}
+static inline void IpcmdOperationInfoReceivedMessageInit (IpcmdOperationInfoReceivedMessage *info) { info->parent_.type_ = kOperationInfoReceivedMessage;}
+static inline void IpcmdOperationInfoReplyMessageInit (IpcmdOperationInfoReplyMessage *info) { info->parent_.type_ = kOperationInfoReplyMessage;}
+static inline void IpcmdOperationInfoInvokeMessageInit (IpcmdOperationInfoInvokeMessage *info) { info->parent_.type_ = kOperationInfoInvokeMessage;}
 
 struct _IpcmdOperationCallback {
-	gint		(*cb_func)(OpHandle handle, const IpcmdOperationInfo *result, gpointer cb_data);
+	void		(*cb_func)(OpHandle handle, const IpcmdOperationInfo *result, gpointer cb_data);
 	/* cb_destroy :
 	 * called to release cb_data memory when IpcmdOperationResultCallback is destroyed. If it is NULL, 'cb_data' is not released.
 	 */

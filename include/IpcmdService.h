@@ -17,7 +17,12 @@ struct _IpcmdService {
 	guint16		service_id_;
 	IpcmdServer	*server_;
 
-	void		(*ExecOperation)(OpHandle handle, const IpcmdOperationInfo *opeartion);
+	/* @fn: ExeOperation
+	 * virtual function, which should be implemented by each IpcmdService. After ExecOperation() is invoked,
+	 * the callee should call IpcmdServiceCompleteOperation() to complete the operation.
+	 */
+	ExecuteOperation	exec_;
+	//void		(*ExecOperation)(IpcmdService *self, OpHandle handle, const IpcmdOperationInfo *operation);
 };
 
 gint		IpcmdServiceCompleteOperation(IpcmdService *self, OpHandle handle, const IpcmdOperationInfo *result);

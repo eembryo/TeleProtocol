@@ -8,22 +8,25 @@
 #include "../include/IpcmdOpStateMachine.h"
 
 extern void IpcmdOpStateMachine_CLREQUEST_Init(IpcmdOpStateMachine *SM);
-//extern IpcmdOpStateMachine_CLSetRequestNoReturn_Init(IpcmdOpStateMachine *SM);
-//extern IpcmdOpStateMachine_CLSetRequest_Init(IpcmdOpStateMachine *SM);
-//extern IpcmdOpStateMachine_CLSetNotificationRequest_Init(IpcmdOpStateMachine *SM);
-//extern IpcmdOpStateMachine_CLSetNotification_Init(IpcmdOpStateMachine *SM);
+extern void IpcmdOpStateMachine_CLSetreq_Init(IpcmdOpStateMachine *SM);
+extern void IpcmdOpStateMachine_CLSetnor_Init(IpcmdOpStateMachine *SM);
+extern void IpcmdOpStateMachine_CLNotreq_Init(IpcmdOpStateMachine *SM);
+extern void IpcmdOpStateMachine_CLNoti_Init(IpcmdOpStateMachine *SM);
+
 
 IpcmdOpStateMachine SM_CL_Request;
-//IpcmdOpStateMachine SM_CL_SetRequestNoReturn;
-//IpcmdOpStateMachine SM_CL_SetRequest;
-//IpcmdOpStateMachine SM_CL_NotificationRequest;
-//IpcmdOpStateMachine SM_CL_Notification;
+IpcmdOpStateMachine SM_CL_Setnor;
+IpcmdOpStateMachine SM_CL_Notreq;
+IpcmdOpStateMachine SM_CL_Setreq;
+IpcmdOpStateMachine SM_CL_Noti;
 
-void IpcomOpStateMachineInit()
+void IpcmdOpStateMachineInit() __attribute__((constructor));
+
+void IpcmdOpStateMachineInit()
 {
 	IpcmdOpStateMachine_CLREQUEST_Init(&SM_CL_Request);
-	//IpcmdOpStateMachine_CLSetRequestNoReturn_Init(&SM_CL_SetRequestNoReturn);
-	//IpcmdOpStateMachine_CLSetRequest_Init(&SM_CL_SetRequest);
-	//IpcmdOpStateMachine_CLSetNotificationRequest_Init(&SM_CL_NotificationRequest);
-	//IpcmdOpStateMachine_CLSetNotification_Init(&SM_CL_Notification);
+	IpcmdOpStateMachine_CLSetnor_Init(&SM_CL_Setnor);
+	IpcmdOpStateMachine_CLNotreq_Init(&SM_CL_Notreq);
+	IpcmdOpStateMachine_CLSetreq_Init(&SM_CL_Setreq);
+	IpcmdOpStateMachine_CLNoti_Init(&SM_CL_Noti);
 }

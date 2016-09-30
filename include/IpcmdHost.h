@@ -36,6 +36,7 @@ struct _IpcmdHost {
 
 gpointer	IpcmdHostRef (IpcmdHost *host);
 void		IpcmdHostUnref (IpcmdHost *host);
+gboolean	IpcmdHostIsConnectionless(IpcmdHost *host);
 
 /**
  * IpcmdUdpv4Host: contains IPv4 address and UDP port information.
@@ -53,6 +54,7 @@ static inline IpcmdUdpv4Host* IPCMD_UDPv4HOST(IpcmdHost *obj) {
 
 IpcmdHost*	IpcmdUdpv4HostNew (GInetAddress *address, guint16 port);
 IpcmdHost*	IpcmdUdpv4HostNew2 (GInetSocketAddress *sock_addr);
+IpcmdHost*	IpcmdUdpv4HostNew3 (const gchar *ip_addr, guint16 port);
 
 G_END_DECLS
 

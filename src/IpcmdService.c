@@ -6,28 +6,31 @@
  */
 
 #include "../include/IpcmdService.h"
+#include "../include/IpcmdServer.h"
+#include "../include/IpcmdOperation.h"
+#include "../include/IpcmdDeclare.h"
+#include "../include/IpcmdOperationContext.h"
 #include <glib.h>
 
 gint
-IpcmdServiceCompleteOperation(OpHandle handle, const IpcmdOperationResult *result)
+IpcmdServiceCompleteOperation(IpcmdService *self, OpHandle handle, const IpcmdOperationInfo *reply)
 {
-
+	IpcmdServerCompleteOperation (self->server_, &((IpcmdOpCtx *)handle)->opctx_id_, reply);
+	return 0;
 }
 
-gint
-IpcmdServiceAddSubscriber(guint16 operation_id, guint8 notification_type, const IpcmdHost *subscriber, gboolean is_static)
+gboolean
+IpcmdServiceAddSubscriber(IpcmdService *self, guint16 operation_id, gboolean is_cyclic, const IpcmdHost *subscriber, gboolean is_static_member)
 {
-
+	return TRUE;
 }
-
 void
-IpcmdServiceInformNotification(guint16 operation_id, guint8 notification_type, const IpcmdOperation *operation)
+IpcmdServiceInformNotification(IpcmdService *self, guint16 operation_id, gboolean is_cyclic, const IpcmdOperationInfo *operation)
 {
 
 }
-
 void
-IpcmdServiceRemoveSubscriber(guint16 operation_id, guint8 notification_type, const IpcmdHost *subscriber)
+IpcmdServiceRemoveSubscriber(IpcmdService *self, guint16 operation_id, gboolean is_cyclic, const IpcmdHost *subscriber)
 {
 
 }

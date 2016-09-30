@@ -46,4 +46,7 @@ IpcmdConfigInit(IpcmdConfig *config)
 	config->numberOfRetriesWFA = 6;
 	config->increaseTimerValueWFR = 2;
 	config->numberOfRetriesWFR = 2;
+
+	/* REQPROD 347045/MAIN;3 : Minimum concurrent message sequences */
+	config->maximumConcurrentMessages = 10;
 }

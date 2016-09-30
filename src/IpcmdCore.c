@@ -75,21 +75,74 @@ IpcmdCoreUnregisterClient(IpcmdCore *self, IpcmdClient *client)
 void
 IpcmdCoreDispatch(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg)
 {
-	// IMPL: whole function
-	g_message ("%s: channel_id = %d", __func__, channel_id);
+	gint ret;
+
+	switch (IpcmdMessageGetVCCPDUOpType(mesg)) {
+	case IPCMD_OPTYPE_REQUEST:
+	case IPCMD_OPTYPE_SETREQUEST_NORETURN:
+	case IPCMD_OPTYPE_SETREQUEST:
+	case IPCMD_OPTYPE_NOTIFICATION_REQUEST:
+		// if op_type is one of REQUEST, SETREQUEST, SETREQUEST_NORETURN and NOTIFICATION_REQUEST, it should be delivered to IpcmdServer
+		if (IpcmdServerHandleMessage (&self->server_, channel_id, mesg) < 0)
+			g_debug("IpcmdServer cannot handle this message(0x%.04x). Ignore it.", IpcmdMessageGetVCCPDUSenderHandleID(mesg));
+		break;
+	case IPCMD_OPTYPE_RESPONSE:
+	case IPCMD_OPTYPE_NOTIFICATION:
+	case IPCMD_OPTYPE_NOTIFICATION_CYCLIC:
+	{
+		// if op_type is one of RESPONSE, NOTIFICATION and NOTIFICATION_CYCLIC, delivered to IpcmdClient.
+		GList *l;
+		for (l=self->clients_; l!=NULL; l=l->next) {
+			ret = IpcmdClientHandleMessage ((IpcmdClient*)l->data, channel_id, mesg);
+			if (!ret) break;	//it is successfully handled.
+		}
+		if (ret < 0)
+			g_debug("IpcmdClients cannot handle this message(0x%.04x). Ignore it.", IpcmdMessageGetVCCPDUSenderHandleID(mesg));
+	}
+	break;
+	case IPCMD_OPTYPE_ACK:
+	case IPCMD_OPTYPE_ERROR:
+	{
+		// if op_type is ACK or ERROR, it may be delivered to IpcmdServer or IpcmdClient
+		// Try IpcmdClients first
+		GList *l;
+		for (l=self->clients_; l!=NULL; l=l->next) {
+			ret = IpcmdClientHandleMessage ((IpcmdClient*)l->data, channel_id, mesg);
+			if (!ret) break;	//it is successfully handled.
+		}
+		if (ret) { // if it cannot handled by IpcmdClients, handle it with IpcmdServer
+			ret = IpcmdServerHandleMessage (&self->server_, channel_id, mesg);
+		}
+		if (ret)
+			g_debug("IpcmdServer or IpcmdClient cannot handle this message(0x%.04x). Ignore it.", IpcmdMessageGetVCCPDUSenderHandleID(mesg));
+	}
+	break;
+	default:
+		g_debug("Got Unknown IpcmdMessage(0x%.04x) type(%d). Ignore it.", IpcmdMessageGetVCCPDUSenderHandleID(mesg), IpcmdMessageGetVCCPDUOpType(mesg));
+		break;
+	}
 }
 
+/* @fn : IpcmdCoreTransmit
+ * @return : 	-1 on invalid channel_id
+ * 				sent bytes on success
+ */
 gint
 IpcmdCoreTransmit(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg)
 {
-	IpcmdBusTx (&self->bus_, channel_id, mesg);
-	return 0;
+	return IpcmdBusTx (&self->bus_, channel_id, mesg);
 }
 
 IpcmdBus *
 IpcmdCoreGetBus(IpcmdCore *self)
 {
 	return &self->bus_;
+}
+
+IpcmdServer *
+IpcmdCoreGetServer(IpcmdCore *self)
+{
+	return &self->server_;
 }
 
 GMainContext*

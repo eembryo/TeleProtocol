@@ -12,32 +12,25 @@
 #include "../include/IpcmdOpStateMachine.h"
 
 #define DECLARE_SM_ENTRY(fn_name) \
-	static int fn_name(IpcmdOpState *op_state, IpcmdOpCtxTrigger trigger, gconstpointer data)
+	static gint fn_name(IpcmdOpState *op_state, enum _IpcmdOpCtxTriggers trigger, gconstpointer data)
 
 /*******************************************
+ * @fn: DoAction_NotDetermined
  * Not determined action. program should not be here.
  * @ op_state :
  * @ trigger :
  * @ data : NULL
  *
  *******************************************/
-DECLARE_SM_ENTRY(DoAction_NotDetermined)
-{
-	g_error("Not determined action.\n");
-	return -1;
-}
-
+extern gint DoAction_NotDetermined(IpcmdOpState *op_state, enum _IpcmdOpCtxTriggers trigger, gconstpointer data);
 /*******************************************
+ * @fn: DoAction_Ignore
  * The trigger is acceptable, but will be ignored.
  * @ op_state :
  * @ trigger :
  * @ data : NULL
  *
  *******************************************/
-DECLARE_SM_ENTRY(DoAction_Ignore)
-{
-	//silently ignore
-	return op_state->state_;
-}
+extern gint DoAction_Ignore(IpcmdOpState *op_state, enum _IpcmdOpCtxTriggers trigger, gconstpointer data);
 
 #endif /* INCLUDE_IPCMDOPSTATEMACHINECOMMON_H_ */

@@ -20,7 +20,7 @@ static void _NotifyChannelEvent(IpcmdBus *self, IpcmdChannelId id, const IpcmdBu
 static guint16 _GetSpareChannelId(struct _IpcmdBus *self);
 static void _OnRemoveChannelFromHashtable(IpcmdChannel *channel);
 
-/* _GetSpareChannelId :
+/* @fn: _GetSpareChannelId :
  * Return unique channel id unless the number of allocated channel id does not exceed MAX_N_OF_CHANNELS.
  *
  * return 0 if the number of allocated id reaches to MAX_N_OF_CHANNELS.
@@ -138,7 +138,7 @@ IpcmdBusUnregisterChannel(IpcmdBus *self, IpcmdChannel *channel)
 }
 
 /* IpcmdBusFindChannelsByPeerHost:
- * Find channel ids for remote host. The caller should free returned GList.
+ * Find channel ids for remote host. The caller should free returned GList with g_list_free().
  *
  * return NULL if failed.
  */

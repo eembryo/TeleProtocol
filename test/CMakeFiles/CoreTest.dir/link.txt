@@ -1,1 +1,0 @@
-/usr/bin/cc     CMakeFiles/CoreTest.dir/CoreTest.c.o  -o CoreTest -rdynamic -lglib-2.0 -lgio-2.0 -lgobject-2.0 -lglib-2.0 -lgio-2.0 -lgobject-2.0 -lglib-2.0 -lrt -lpthread -lm ../src/libipcmd.so -lglib-2.0 -lgio-2.0 -lgobject-2.0 -lglib-2.0 -lgio-2.0 -lgobject-2.0 -lrt -lpthread -lm -Wl,-rpath,/home/hyotiger/Works/hyotiger_libipcmd/src 

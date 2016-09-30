@@ -19,6 +19,7 @@ void			IpcmdCoreInit(IpcmdCore *self, GMainContext *context);
 void			IpcmdCoreFree(IpcmdCore *self);
 void			IpcmdCoreFinalize(IpcmdCore *self);
 IpcmdBus*		IpcmdCoreGetBus(IpcmdCore *self);
+IpcmdServer*	IpcmdCoreGetServer(IpcmdCore *self);
 GMainContext*	IpcmdCoreGetGMainContext(IpcmdCore *self);
 void			IpcmdCoreDispatch(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg);
 gint			IpcmdCoreTransmit(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg);

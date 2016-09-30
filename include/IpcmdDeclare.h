@@ -51,6 +51,13 @@ typedef struct _IpcmdOperationInfoInvokeMessage		IpcmdOperationInfoInvokeMessage
 typedef struct _IpcmdOperationCallback		IpcmdOperationCallback;
 // IpcmdService.h
 typedef struct _IpcmdService IpcmdService;
+typedef void (*ExecuteOperation)(IpcmdService *self, OpHandle handle, const IpcmdOperationInfo *operation);
+
+// common
+typedef struct {
+	IpcmdHost		*host;
+	IpcmdChannelId	id_;
+} IpcmdChannelId2HostPair ;
 
 G_END_DECLS
 

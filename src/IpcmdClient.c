@@ -13,10 +13,12 @@
 #include "../include/IpcmdBus.h"
 #include "../include/IpcmdCore.h"
 #include "../include/IpcmdOperationContext.h"
+#include "../include/IpcmdHost.h"
 
 #include <glib.h>
 
 struct _IpcmdClient {
+	IpcmdHost		*server_host_;
 	IpcmdChannelId	channel_id_;
 	GHashTable		*operation_contexts_;
 	GList			*subscribed_notifications_;
@@ -38,6 +40,19 @@ struct _SubscribedNotification {
 
 static GList* 	_LookupSubscribedNotification (GList *subscription_list, guint16 service_id, guint16 operation_id, gboolean is_cyclic);
 static void		_ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data);
+static void		_OnOpCtxFinalized(IpcmdOpCtxId opctx_id, gpointer cb_data);
+static void		_RemoveOpCtx (gpointer opctx);
+static void		_Init (IpcmdClient *self, IpcmdCore *core, guint16 service_id, IpcmdHost *server_host);
+
+#define REPLY_ERROR(core, channel_id, ecode, einfo) do {\
+		IpcmdMessage *error_message = IpcmdMessageNew(IPCMD_ERROR_MESSAGE_SIZE); \
+		IpcmdMessageInitVCCPDUHeader (error_message, IpcmdMessageGetVCCPDUServiceID(mesg), \
+				IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUSenderHandleID(mesg), \
+				IpcmdMessageGetVCCPDUProtoVersion(mesg), IPCMD_OPTYPE_ERROR, IPCMD_PAYLOAD_NOTENCODED, 0); \
+		IpcmdMessageSetErrorPayload (error_message, ecode, einfo); \
+		IpcmdCoreTransmit (core, channel_id, error_message); \
+		IpcmdMessageUnref(error_message);\
+}while(0)
 
 guint16
 IpcmdClientGetServiceid(IpcmdClient *self)
@@ -53,18 +68,41 @@ IpcmdClientGetServiceid(IpcmdClient *self)
 gint
 IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMessage *mesg)
 {
-	/*
+	IpcmdOpCtx 		*opctx = NULL;
 	IpcmdOpCtxId	opctx_id = {
-			.channel_id_ 		=	channel_id,
-			.sender_handle_id_	=	IpcmdMessageGetVCCPDUSenderHandleID(mesg)
+			.channel_id_ = channel_id,
+			.sender_handle_id_ = IpcmdMessageGetVCCPDUSenderHandleID(mesg)
 	};
-	*/
-
 	IpcmdMessageRef(mesg);
 
+	if (self->channel_id_ != channel_id || IpcmdMessageGetVCCPDUServiceID(mesg) != self->service_id_)	goto _ClientHandleMessage_failed;
+
+	g_debug ("Client get message: CONNID=%d, SHID=0x%.04x, OP_TYPE=0x%x", opctx_id.channel_id_, opctx_id.sender_handle_id_, IpcmdMessageGetVCCPDUOpType(mesg));
+
+	/* validation check */
+	// ProtocolVersion
+	if (IpcmdMessageGetVCCPDUProtoVersion(mesg) != IPCMD_PROTOCOL_VERSION) {
+		//send IpcmdError with 0x04 (Invalid protocol version) if op_type is not ACK or ERROR
+		if (IpcmdMessageGetVCCPDUOpType(mesg) != IPCMD_OPTYPE_ACK && IpcmdMessageGetVCCPDUOpType(mesg) != IPCMD_OPTYPE_ERROR) {
+			REPLY_ERROR (self->core_, channel_id, IPCOM_MESSAGE_ECODE_INVALID_PROTOCOL_VERSION, IPCMD_PROTOCOL_VERSION);
+		}
+		goto _ClientHandleMessage_done;
+	}
+	// Service ID - service id already checked above
+	// OperationID - will be checked at application
+	// OperationType - will be checked at State Machine
+	// Length - will be checked at application
+
+	// Check opctx_id is already registered in hash table
+	opctx = g_hash_table_lookup (self->operation_contexts_, &opctx_id);
+	if (!opctx) {	// Not requested operation. Probably, delayed message came. ignore the message
+		g_debug ("Got delayed message (CONNID=%d, SHID=0x%.04x, OP_TYPE=0x%x)", opctx_id.channel_id_, opctx_id.sender_handle_id_, IpcmdMessageGetVCCPDUOpType(mesg));
+		goto _ClientHandleMessage_done;
+	}
 	switch (IpcmdMessageGetVCCPDUOpType(mesg)) {
 	case IPCMD_OPTYPE_RESPONSE:
 		// trigger RECV_RESPONSE to opctx
+		IpcmdOpCtxTrigger (opctx, kIpcmdTriggerRecvResp, (gpointer)mesg);
 		break;
 	case IPCMD_OPTYPE_NOTIFICATION:
 	case IPCMD_OPTYPE_NOTIFICATION_CYCLIC:
@@ -98,15 +136,18 @@ IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMess
 	}
 		break;
 	case IPCMD_OPTYPE_ACK:
-		// trigger RECV_ACK to opctx
+		// trigger kIpcmdTriggerRecvAck to opctx
+		IpcmdOpCtxTrigger (opctx, kIpcmdTriggerRecvAck, 0);
 		break;
 	case IPCMD_OPTYPE_ERROR:
-		// trigger RECV_ERROR to opctx
+		// trigger kIpcmdTriggerRecvError to opctx
+		IpcmdOpCtxTrigger (opctx, kIpcmdTriggerRecvError, (gpointer)mesg);
 		break;
 	default:
-		goto _ClientHandleMessage_failed;
+		goto _ClientHandleMessage_done;
 	}
 
+	_ClientHandleMessage_done:
 	IpcmdMessageUnref(mesg);
 	return 0;
 
@@ -126,8 +167,18 @@ IpcmdClientInvokeOperation(IpcmdClient *self, guint16 operation_id, guint8 op_ty
 	gint	ret;
 	guint8	num;
 	IpcmdOpCtxId	opctx_id;
+	IpcmdOpCtxDeliverToAppCallback	to_app_cb = {
+			.cb_func = cb->cb_func,
+			.cb_destroy = cb->cb_destroy,
+			.cb_data = cb->cb_data
+	};
+	IpcmdOpCtxFinalizeCallback finalizing_cb = {
+			.cb_func = _OnOpCtxFinalized,
+			.cb_destroy = NULL,
+			.cb_data = self
+	};
 
-	if (self->channel_id_ == 0) { // there is no active channel
+	if (self->channel_id_ == 0) { // if no channel for server_host, return NULL
 		return NULL;
 	}
 
@@ -142,23 +193,13 @@ IpcmdClientInvokeOperation(IpcmdClient *self, guint16 operation_id, guint8 op_ty
 		}
 	}
 	if (!ctx) return NULL; // not enough memory or sequence number is exhausted.
-
-	ctx->serviceId = self->service_id_;
-	ctx->operationId = operation_id;
-	ctx->protoVersion = IPCMD_PROTOCOL_VERSION;
-	ctx->opType = op_type;
-	ctx->flags = flags;
-	ctx->deliver_to_app_ = *cb;
-	// IMPL: ctx->notify_finalizing_ =
-	//ctx->nWFABaseTimeout = ;
-	//ctx->nWFAIncreaseTimeout = ;
-	//ctx->nWFAMaxRetries = ;
-	//ctx->nWFRBaseTimeout = ;
-	//ctx->nWFRIncreaseTimeout = ;
-	//ctx->nWFRMaxRetries = ;
+	IpcmdOpCtxInit (ctx, self->core_,
+			self->service_id_, operation_id, op_type, flags,
+			&to_app_cb,
+			&finalizing_cb);
 
 	// 2. add IpcmdOpCtx to self->contexts_
-	g_hash_table_insert (self->operation_contexts_, &ctx->opctx_id_,ctx);
+	g_hash_table_insert (self->operation_contexts_, &ctx->opctx_id_, ctx);
 
 	// 3. trigger
 	info.parent_.type_ = kOperationInfoInvokeMessage;
@@ -166,16 +207,39 @@ IpcmdClientInvokeOperation(IpcmdClient *self, guint16 operation_id, guint8 op_ty
 	info.header_.flags_ = flags;
 	info.header_.operation_id_ = operation_id;
 	info.header_.service_id_ = self->service_id_;
-	info.payload_ = *payload;
+	if (payload == NULL) {
+		info.payload_.data_ = NULL;
+		info.payload_.length_ = 0;
+		info.payload_.type_ = 0x01;	//no encoding
+	}
 
-	ret = IpcomOpCtxTrigger (ctx, kIpcmdTriggerSendRequest, (const IpcmdOperationInfo*)&info);
+	switch (op_type) {
+	case IPCMD_OPTYPE_REQUEST:
+		ret = IpcmdOpCtxTrigger (ctx, kIpcmdTriggerSendRequest, (const IpcmdOperationInfo*)&info);
+		break;
+	case IPCMD_OPTYPE_SETREQUEST_NORETURN:
+		ret = IpcmdOpCtxTrigger (ctx, kIpcmdTriggerSendSetnor, (const IpcmdOperationInfo*)&info);
+		break;
+	case IPCMD_OPTYPE_SETREQUEST:
+		ret = IpcmdOpCtxTrigger (ctx, kIpcmdTriggerSendSetreq, (const IpcmdOperationInfo*)&info);
+		break;
+	case IPCMD_OPTYPE_NOTIFICATION_REQUEST:
+		ret = IpcmdOpCtxTrigger (ctx, kIpcmdTriggerSendNotreq, (const IpcmdOperationInfo*)&info);
+		break;
+	default:
+		//IMPL: report error message
+		g_error("Wrong Operation Type.");
+		break;
+	}
 	if (ret < 0) {	//failed to send request
-		//IMPL: need to report error message
+		//IMPL: report error message
+		g_error("fail to invoke operation");
 		return NULL;
 	}
 
 	return ctx;
 }
+
 
 /******************************************************************************************************
  *  @fn: IpcmdClientSubscribeNotification :
@@ -228,24 +292,22 @@ IpcmdClientUnsubscribeNotification(IpcmdClient *self, guint16 operation_id)
 	}
 }
 
-void
-IpcmdClientInit (IpcmdClient *self, IpcmdCore *core)
+IpcmdClient*
+IpcmdClientNew (IpcmdCore *core, guint16 service_id, IpcmdHost *server_host)
 {
-	self->subscribed_notifications_ = NULL;
-	self->operation_contexts_ = NULL;
-	self->service_id_ = 0;
-	self->channel_id_ = 0;
-	self->seq_num_ = 0;
-	self->core_ = core;
-	self->listener_.OnChannelEvent = _ReceiveChannelEvent;
-	IpcmdBusAddEventListener (IpcmdCoreGetBus(self->core_),&self->listener_);
+	IpcmdClient *client = g_malloc(sizeof(struct _IpcmdClient));
+
+	_Init(client, core, service_id, server_host);
+	return client;
 }
+
 void
 IpcmdClientFinalize (IpcmdClient *self)
 {
 	IpcmdBusRemoveEventListener (IpcmdCoreGetBus(self->core_), &self->listener_);
 	// IMPL: free self->subscribed_notifications_;
 	// IMPL: free self->operation_contexts_;
+	IpcmdHostUnref (self->server_host_);
 }
 
 static GList*
@@ -275,4 +337,46 @@ _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type,
 
 	// IMPL: whole function
 	g_debug("Got channel event: id=%d, type=%d", id, type);
+}
+
+static void
+_Init (IpcmdClient *self, IpcmdCore *core, guint16 service_id, IpcmdHost *server_host)
+{
+	g_assert(server_host != NULL);
+
+	self->core_ = core;
+	self->service_id_ = service_id;
+	self->server_host_ = IpcmdHostRef(server_host);
+	self->subscribed_notifications_ = NULL;
+	self->operation_contexts_ = g_hash_table_new_full (IpcmdOpCtxIdHashfunc, IpcmdOpCtxIdEqual, NULL, _RemoveOpCtx);
+	self->seq_num_ = 0;
+	self->listener_.OnChannelEvent = _ReceiveChannelEvent;
+	IpcmdBusAddEventListener (IpcmdCoreGetBus(self->core_),&self->listener_);
+	// Lookup channel_id for server_host
+	{
+		GList *l;
+		l = IpcmdBusFindChannelIdsByPeerHost (IpcmdCoreGetBus(self->core_), self->server_host_);
+		self->channel_id_ = l ? GPOINTER_TO_INT (l->data) : 0;	// set the first channel in the list if it exists
+		g_list_free (l);
+	}
+}
+
+
+/* @fn: _RemoveOpCtx
+ * remove IpcmdOpCtx from hashtable. MUST call IpcmdCoreReleaseOpCtx() after this.
+ *
+ */
+static void
+_RemoveOpCtx (gpointer opctx)
+{
+	IpcmdOpCtxUnref(opctx);
+}
+
+static void
+_OnOpCtxFinalized(IpcmdOpCtxId opctx_id, gpointer cb_data)
+{
+	IpcmdClient *client = (IpcmdClient *)cb_data;
+
+	g_hash_table_remove (client->operation_contexts_, &opctx_id);
+	IpcmdCoreReleaseOpCtx (client->core_, opctx_id);
 }

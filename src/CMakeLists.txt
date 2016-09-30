@@ -10,8 +10,14 @@ set(SRCS
 	IpcmdServer.c
 	IpcmdTransportUdpv4.c
 	IpcmdOpStateMachine.c
+	IpcmdOpStateMachineCommon.c
 	IpcmdOpStateMachineCLRequest.c
+	IpcmdOpStateMachineCLSetnor.c
+	IpcmdOpStateMachineCLNotreq.c
+	IpcmdOpStateMachineCLSetreq.c
+	IpcmdOpStateMachineCLNoti.c
 	IpcmdConfig.c
+	IpcmdService.c
 	NetifcMonitor.c
 	SocketUtils.c
    )

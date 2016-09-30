@@ -17,6 +17,7 @@ typedef struct _IpcmdConfig {
 	gint	defaultTimeoutWFR;		//milliseconds
 	gfloat	increaseTimerValueWFR;
 	gint	numberOfRetriesWFR;
+	guint16	maximumConcurrentMessages;
 } IpcmdConfig;
 
 IpcmdConfig	*IpcmdConfigGetInstance();

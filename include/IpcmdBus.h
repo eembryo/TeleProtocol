@@ -37,7 +37,6 @@ void 		IpcmdBusNotifyChannelEvent(IpcmdBus *self, IpcmdChannelId id, const Ipcmd
 
 void 		IpcmdBusInit(IpcmdBus *self,IpcmdCore *core);
 void 		IpcmdBusFinalize(struct _IpcmdBus *self);
-IpcmdChannel*	IpcmdBusFindChannelById(IpcmdBus *self, IpcmdChannelId id);
 guint16 	IpcmdBusRegisterChannel(IpcmdBus *self, IpcmdChannel *channel);
 void 		IpcmdBusUnregisterChannel(IpcmdBus *self, IpcmdChannel *channel);
 GList*		IpcmdBusFindChannelIdsByPeerHost(IpcmdBus *self, IpcmdHost *remote);
@@ -45,6 +44,7 @@ gboolean 	IpcmdBusAttachTransport(IpcmdBus *self, IpcmdTransport *transport);
 void 		IpcmdBusDetachTransport(IpcmdBus *self, IpcmdTransport *transport);
 gint		IpcmdBusTx(IpcmdBus *self, IpcmdChannelId channel_id, IpcmdMessage *mesg);
 gint		IpcmdBusRx(IpcmdBus *self, IpcmdChannelId channel_id, IpcmdMessage *mesg);
+IpcmdChannel*	IpcmdBusFindChannelById(IpcmdBus *self, IpcmdChannelId id);
 
 G_END_DECLS
 

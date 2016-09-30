@@ -153,15 +153,13 @@ _Udpv4Receive(IpcmdTransportUdpv4 *udp_transport, GSocket *socket)
 	length = recvmsg (g_socket_get_fd(udp_transport->socket_), &msgh, 0);
 	if (length < 0) {
 		g_warning("%s", strerror(errno));
-		IpcmdMessageUnref(new_mesg);
-		return FALSE;
+		goto _Udpv4Receive_failed;
 	}
 
 	/* if VCCCPDUHeader->length+8 != length, this packet is damaged! */
 	if (IpcmdMessageGetVCCPDULength(new_mesg)+8 != length) {
 		g_info("The length field in VCCPDU header is inconsistent with actual received packet length. Silently discard.");
-		IpcmdMessageUnref(new_mesg);
-		return FALSE;
+		goto _Udpv4Receive_failed;
 	}
 	IpcmdMessageSetLength(new_mesg, length);
 
@@ -204,7 +202,7 @@ _Udpv4Receive(IpcmdTransportUdpv4 *udp_transport, GSocket *socket)
 
 		/* check that the key is already in hash table.*/
 		channel = (IpcmdChannel *)g_hash_table_lookup(udp_transport->channels_, &key);
-		if (!channel) {	// new channel is detected!
+		if (!channel && udp_transport->transport_mode_ == kUdpv4ModeListening) {	// new channel is detected and transport is LISTENING MODE
 			ChannelHashkey *new_key;
 
 			channel = _Udpv4ChannelNew(local_glib_sockaddr, remote_glib_sockaddr, udp_transport);
@@ -245,6 +243,7 @@ _Udpv4Receive(IpcmdTransportUdpv4 *udp_transport, GSocket *socket)
     IpcmdMessageSetOriginSockAddress(new_mesg, G_SOCKET_ADDRESS(remote_glib_sockaddr));
 
     if (channel) {
+    	if (channel->status_ == kChannelOpening) channel->status_ = kChannelEstablished;
     	IpcmdBusRx(IPCMD_TRANSPORT(udp_transport)->bus_, channel->channel_id_, new_mesg);
     }
     else
@@ -311,6 +310,7 @@ _Udpv4Connect(IpcmdTransport *transport, const gchar *remoteIp, const guint16 re
 	IpcmdChannel			*channel;
 	GInetSocketAddress		*remote_glib_sockaddr = NULL;
 	GInetSocketAddress		*local_glib_sockaddr = NULL;
+	ChannelHashkey 			*channel_key;
 	GError					*gerror = NULL;
 
 	if (udp_transport->transport_mode_) {
@@ -348,17 +348,27 @@ _Udpv4Connect(IpcmdTransport *transport, const gchar *remoteIp, const guint16 re
 	} else
 		local_glib_sockaddr = g_object_ref(udp_transport->bound_sockaddr_);
 
+	channel = _Udpv4ChannelNew (local_glib_sockaddr, remote_glib_sockaddr, udp_transport);
+	channel->status_ = kChannelOpening;	// status is opening until we get any packets from peer.
+	channel_key = g_malloc(sizeof(ChannelHashkey));
+	channel_key->local_sockaddr = g_object_ref (local_glib_sockaddr);
+	channel_key->remote_sockaddr = g_object_ref (remote_glib_sockaddr);
+	if (!g_hash_table_insert (udp_transport->channels_, channel_key, channel)) {
+		g_error("Failed to add new channel into hash table.");
+	}
+	/*
 	channel = g_malloc0(sizeof(IpcmdChannel));
 	g_assert(channel);
 	channel->local_host_ = IpcmdUdpv4HostNew2 (local_glib_sockaddr);
 	channel->remote_host_ = IpcmdUdpv4HostNew2 (remote_glib_sockaddr);
 	channel->status_ = kChannelOpening;
 	channel->transport_ = transport;
-
+	 */
 	if (!IpcmdBusRegisterChannel (transport->bus_, channel)) { // bus may reject this channel
-		IpcmdHostUnref (channel->local_host_);
-		IpcmdHostUnref (channel->remote_host_);
-		g_free (channel);
+		g_hash_table_remove (udp_transport->channels_, channel_key);
+		//IpcmdHostUnref (channel->local_host_);
+		//IpcmdHostUnref (channel->remote_host_);
+		//g_free (channel);
 		goto _Udpv4Connect_failed;
 	}
 

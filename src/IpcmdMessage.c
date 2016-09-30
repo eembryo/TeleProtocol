@@ -16,7 +16,7 @@ _IpcmdMessageFree(struct ref *r)
 	IpcmdMessage *pMsg = container_of(r, IpcmdMessage, _ref);
 	r->count = -1;		//mark that this object is already freed.
 
-	g_debug("Free IpcmdMessage (SenderHandleID: 0x%x, OpType: 0x%x)\n", IpcmdMessageGetVCCPDUSenderHandleID(pMsg), IpcmdMessageGetVCCPDUOpType(pMsg));
+	g_debug("Free IpcmdMessage (SHID=0x%.04x, OpType=0x%x)", IpcmdMessageGetVCCPDUSenderHandleID(pMsg), IpcmdMessageGetVCCPDUOpType(pMsg));
 
 	if (pMsg->payload_ptr < (gpointer)pMsg || pMsg->payload_ptr > ((gpointer)pMsg->vccpdu_ptr + pMsg->actual_size)) {
 		g_free(pMsg->payload_ptr);

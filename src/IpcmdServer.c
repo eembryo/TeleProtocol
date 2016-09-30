@@ -5,6 +5,7 @@
  *      Author: hyotiger
  */
 
+#include "../include/IpcmdService.h"
 #include "../include/IpcmdServer.h"
 #include "../include/IpcmdServerImpl.h"
 #include "../include/IpcmdBus.h"
@@ -12,23 +13,53 @@
 #include "../include/IpcmdMessage.h"
 #include "../include/reference.h"
 #include "../include/IpcmdCore.h"
+#include "../include/IpcmdService.h"
+#include "../include/IpcmdConfig.h"
 #include <glib.h>
 
 #define IPCMD_SERVER_FROM_LISTENER(l) (container_of(l, struct _IpcmdServer, listener_))
 
+static void	_OnOpCtxDeliverToApp(OpHandle handle, const IpcmdOperationInfo *result, gpointer cb_data);
 static void _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data);
 static void _RemoveOpCtx (gpointer opctx);
+static void	_OnOpCtxFinalized(IpcmdOpCtxId opctx_id, gpointer cb_data);
+
+#define REPLY_ERROR(core, channel_id, ecode, einfo) do {\
+		IpcmdMessage *error_message = IpcmdMessageNew(IPCMD_ERROR_MESSAGE_SIZE); \
+		IpcmdMessageInitVCCPDUHeader (error_message, IpcmdMessageGetVCCPDUServiceID(mesg), \
+				IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUSenderHandleID(mesg), \
+				IpcmdMessageGetVCCPDUProtoVersion(mesg), IPCMD_OPTYPE_ERROR, IPCMD_PAYLOAD_NOTENCODED, 0); \
+		IpcmdMessageSetErrorPayload (error_message, ecode, einfo); \
+		IpcmdCoreTransmit (core, channel_id, error_message); \
+		IpcmdMessageUnref(error_message);\
+}while(0)
 
 gint
-IpcmdServerCompleteOperation(IpcmdServer *self, IpcmdOpCtxId opctx_id, const IpcmdOperationInfo *info)
+IpcmdServerCompleteOperation(IpcmdServer *self, const IpcmdOpCtxId *opctx_id, const IpcmdOperationInfo *info)
 {
+	IpcmdOpCtx *opctx;
+
 	//1. find opctx
+	opctx = (IpcmdOpCtx*)g_hash_table_lookup (self->operation_contexts_, opctx_id);
+	if (!opctx) {
+		g_warning("IpcmdServerCompleteOperation() is called with not existing operation. "
+				"(channel: %d, SenderHandleID:%.04x", opctx_id->channel_id_, opctx_id->sender_handle_id_);
+		return -1;
+	}
 	//2. trigger kIpcmdTriggerCompletedAppProcess to opctx with result
+	if (IpcmdOpCtxTrigger (opctx, kIpcmdTriggerCompletedAppProcess, info) < 0) {
+		g_warning("Wrong trigger(kIpcmdTriggerCompletedAppProcess).");
+		return -1;
+	}
+
 	return 0;
 }
 
 /* IpcmdServerHandleMessage :
  * handle REQUEST, SETREQUEST, SETREQUEST_NORETURN, NOTIFICATION_REQUEST, ACK and ERROR messages.
+ * IpcmdServer returns -1 when it cannot handle the received message. For example, IpcmdServer will
+ * return -1 when it cannot found an operation context about this message. On the other hand,
+ * IpcmdServer will send ERROR message and return 0 when it received malformed message.
  *
  * return -1 when server cannot handle it.
  * return 0 on successfully handled.
@@ -41,92 +72,195 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 			.channel_id_ = channel_id,
 			.sender_handle_id_ = IpcmdMessageGetVCCPDUSenderHandleID(mesg)
 	};
+	IpcmdService	*service;
+	IpcmdOpCtxDeliverToAppCallback	to_app_cb = {
+			.cb_func = _OnOpCtxDeliverToApp,
+			.cb_destroy = NULL,
+			.cb_data = NULL
+	};
+	IpcmdOpCtxFinalizeCallback finalizing_cb = {
+			.cb_func = _OnOpCtxFinalized,
+			.cb_destroy = NULL,
+			.cb_data = self
+	};
 
 	IpcmdMessageRef(mesg);
 
+	g_debug ("Server get message: CONNID=%d, SHID=0x%.04x, OP_TYPE=0x%x", opctx_id.channel_id_, opctx_id.sender_handle_id_, IpcmdMessageGetVCCPDUOpType(mesg));
 	/* validation check */
 	// ProtocolVersion
+	if (IpcmdMessageGetVCCPDUProtoVersion(mesg) != IPCMD_PROTOCOL_VERSION) {
+		// send IpcmdError with 0x04 (Invalid protocol version) if op_type is not ACK or ERROR
+		if (IpcmdMessageGetVCCPDUOpType(mesg) != IPCMD_OPTYPE_ACK && IpcmdMessageGetVCCPDUOpType(mesg) != IPCMD_OPTYPE_ERROR) {
+			REPLY_ERROR (self->core_, channel_id, IPCOM_MESSAGE_ECODE_INVALID_PROTOCOL_VERSION, IPCMD_PROTOCOL_VERSION);
+		}
+		goto _HandleMessage_done;
+	}
 	// ServiceID
-	// OperationID
-	// OperationType
-	// Length
-	/* Busy - REQPROD 347046
-	 * If the server is concurrently handling the maximum number of messages required
-	 * in [REQPROD347045], it shall respond with an ERROR message using the ErrorCode busy
-	 * (see table in [REQPROD347068]), to any new incomming messages.
-	 */
-	/* Processing - REQPROD 381391, REQPROD 346841
-	 * If the server is busy processing an operationID requested with the proc-flag
-	 * (decribed in [REQPROD381652]) set to 0x1 and the same operationID is requested
-	 * within a new message, it shall drop the newly received message and respond with
-	 * an ERROR message using the ErrorCode processing (see table in [REQPROD 347068])
-	 *
-	 * The server shall enter the processing state described in [REQPROD 381652] and
-	 * if the server receives a retransmission of such message, it shall respond with an
-	 * ERROR message sending error code processing. The client receiving an ERROR message
-	 * with error code processing will then know that the original message still is being
-	 * handled and valid
-	 */
+	service = IpcmdServerLookupService (self, IpcmdMessageGetVCCPDUServiceID(mesg));
+	if (!service) {
+		// send IpcmdError with 0x01 (ServiceID not available) if op_type is not ACK or ERROR
+		if (IpcmdMessageGetVCCPDUOpType(mesg) != IPCMD_OPTYPE_ACK && IpcmdMessageGetVCCPDUOpType(mesg) != IPCMD_OPTYPE_ERROR) {
+			REPLY_ERROR (self->core_, channel_id, IPCOM_MESSAGE_ECODE_SERVICEID_NOT_AVAILABLE, IpcmdMessageGetVCCPDUServiceID(mesg));
+		}
+		goto _HandleMessage_done;
+	}
+	to_app_cb.cb_data = service;
+	// OperationID		-- Application will do
+	// OperationType	-- check in below
+	// Length			-- Application will do
+	// Busy				-- check in below
+	// Processing		-- check in Operation Context
+	// ApplicationError	-- Application will do
+	// Timeout			-- Not yet (IMPL NEEDED)
 
+	// Check opctx_id is already registered in hash table
+	opctx = g_hash_table_lookup (self->operation_contexts_, &opctx_id);
 	// look up processing list
-
 	switch (IpcmdMessageGetVCCPDUOpType(mesg)) {
 	case IPCMD_OPTYPE_REQUEST:
-		opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
-		if (!opctx) { // failed to allocate opctx
-			g_warning("failed to allocate operation context:");
-			goto _HandleMessage_failed;
+		if (!opctx) {	// new operation
+			/* Busy - REQPROD 347046
+			 * If the server is concurrently handling the maximum number of messages required
+			 * in [REQPROD347045], it shall respond with an ERROR message using the ErrorCode busy
+			 * (see table in [REQPROD347068]), to any new incoming messages.
+			 */
+			// If IpcmdServer has maximum number of operation contexts, send BUSY error
+			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maximumConcurrentMessages) {
+				REPLY_ERROR (self->core_, channel_id, IPCOM_MESSAGE_ECODE_BUSY, 0);
+				goto _HandleMessage_done;
+			}
+			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+			if (!opctx) { // failed to allocate opctx
+				g_warning("failed to allocate operation context:");
+				goto _HandleMessage_done;
+			}
+			//1.1. initialize opctx
+			IpcmdOpCtxInit (opctx, self->core_,
+					IpcmdMessageGetVCCPDUServiceID(mesg), IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUOpType(mesg), IpcmdMessageGetVCCPDUFlags(mesg),
+					&to_app_cb,
+					&finalizing_cb);
+			//1.2. Add to hash table
+			g_hash_table_insert (self->operation_contexts_, &opctx->opctx_id_, opctx);
 		}
-		//1. initialize opctx
 		//2. trigger RECV-REQUEST to opctx
+		IpcmdOpCtxTrigger (opctx, kIpcmdTriggerRecvRequest, (gpointer)mesg);
 		break;
 	case IPCMD_OPTYPE_SETREQUEST_NORETURN:
-		opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
-		if (!opctx) { // failed to allocate opctx
-			g_warning("failed to allocate operation context:");
-			goto _HandleMessage_failed;
+		if (!opctx) {	// new operation
+			// If IpcmdServer has maximum number of operation contexts, send BUSY error
+			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maximumConcurrentMessages) {
+				REPLY_ERROR (self->core_, channel_id, IPCOM_MESSAGE_ECODE_BUSY, 0);
+				goto _HandleMessage_done;
+			}
+			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+			if (!opctx) { // failed to allocate opctx
+				g_warning("failed to allocate operation context:");
+				goto _HandleMessage_done;
+			}
+			//1.1. initialize opctx
+			IpcmdOpCtxInit (opctx, self->core_,
+					IpcmdMessageGetVCCPDUServiceID(mesg), IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUOpType(mesg), IpcmdMessageGetVCCPDUFlags(mesg),
+					&to_app_cb,
+					&finalizing_cb);
+			//1.2. Add to hash table
+			g_hash_table_insert (self->operation_contexts_, &opctx->opctx_id_, opctx);
 		}
-		//1. initialize opctx
-		//2. trigger RECV-SETNOR to opctx
+		//3. trigger RECV-SETNOR to opctx
+		IpcmdOpCtxTrigger (opctx, kIpcmdTriggerRecvSetnor, (gpointer)mesg);
 		break;
 	case IPCMD_OPTYPE_SETREQUEST:
-		opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
-		if (!opctx) { // failed to allocate opctx
-			g_warning("failed to allocate operation context:");
-			goto _HandleMessage_failed;
+		if (!opctx) {	// new operation
+			// If IpcmdServer has maximum number of operation contexts, send BUSY error
+			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maximumConcurrentMessages) {
+				REPLY_ERROR (self->core_, channel_id, IPCOM_MESSAGE_ECODE_BUSY, 0);
+				goto _HandleMessage_done;
+			}
+			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+			if (!opctx) { // failed to allocate opctx
+				g_warning("failed to allocate operation context:");
+				goto _HandleMessage_done;
+			}
+			//1.1. initialize opctx
+			IpcmdOpCtxInit (opctx, self->core_,
+					IpcmdMessageGetVCCPDUServiceID(mesg), IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUOpType(mesg), IpcmdMessageGetVCCPDUFlags(mesg),
+					&to_app_cb,
+					&finalizing_cb);
+			//1.2. Add to hash table
+			g_hash_table_insert (self->operation_contexts_, &opctx->opctx_id_, opctx);
 		}
-		//1. initialize opctx
-		//2. trigger RECV-SETREQ to opctx
+		//3. trigger RECV-SETREQ to opctx
+		IpcmdOpCtxTrigger (opctx, kIpcmdTriggerRecvSetreq, (gpointer)mesg);
 		break;
 	case IPCMD_OPTYPE_NOTIFICATION_REQUEST:
-		opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
-		if (!opctx) { // failed to allocate opctx
-			g_warning("failed to allocate operation context:");
-			goto _HandleMessage_failed;
+		if (!opctx) {	// new operation
+			// If IpcmdServer has maximum number of operation contexts, send BUSY error
+			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maximumConcurrentMessages) {
+				REPLY_ERROR (self->core_, channel_id, IPCOM_MESSAGE_ECODE_BUSY, 0);
+				goto _HandleMessage_done;
+			}
+			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+			if (!opctx) { // failed to allocate opctx
+				g_warning("failed to allocate operation context:");
+				goto _HandleMessage_done;
+			}
+			//1.1. initialize opctx
+			IpcmdOpCtxInit (opctx, self->core_,
+					IpcmdMessageGetVCCPDUServiceID(mesg), IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUOpType(mesg), IpcmdMessageGetVCCPDUFlags(mesg),
+					&to_app_cb,
+					&finalizing_cb);
+			//1.2. Add to hash table
+			g_hash_table_insert (self->operation_contexts_, &opctx->opctx_id_, opctx);
 		}
-		//1. initialize opctx
-		//2. trigger RECV-NOTREQ to opctx
+		//3. trigger RECV-NOTREQ to opctx
+		IpcmdOpCtxTrigger (opctx, kIpcmdTriggerRecvNotreq, (gpointer)mesg);
 		break;
 	case IPCMD_OPTYPE_ACK:
-		//1. find opctx from operations_
-		//2. trigger RECV-ACK to opctx
+		if (!opctx) goto _HandleMessage_done;
+		//1. trigger RECV-ACK to opctx
+		IpcmdOpCtxTrigger (opctx, kIpcmdTriggerRecvAck, NULL);
 		break;
 	case IPCMD_OPTYPE_ERROR:
-		//1. find opctx from operations_
-		//2. trigger RECV-ERROR to opctx
+		if (!opctx) goto _HandleMessage_done;
+		//1. trigger RECV-ERROR to opctx
+		IpcmdOpCtxTrigger (opctx, kIpcmdTriggerRecvError, (gpointer)mesg);
 		break;
 	default :
-		goto _HandleMessage_failed;
+		// send error with 0x03 (OperationType is not available)
+		REPLY_ERROR (self->core_, channel_id, IPCOM_MESSAGE_ECODE_OPERATIONTYPE_NOT_AVAILABLE, IpcmdMessageGetVCCPDUOpType(mesg));
+		goto _HandleMessage_done;
 	}
 
+	_HandleMessage_done:
 	IpcmdMessageUnref(mesg);
 	return 0;
-
+/*
 	_HandleMessage_failed:
 	IpcmdMessageUnref(mesg);
 	return -1;
+ */
 }
 
+/*
+IpcmdService *
+IpcmdServerNewService (IpcmdServer *self, guint16 service_id, ExecuteOperation exec_func)
+{
+	IpcmdService *service;
+
+	service = g_malloc (sizeof(struct _IpcmdService));
+	service->server_ = self;
+	service->service_id_ = service_id;
+	service->exec_ = exec_func;
+
+	if (!IpcmdServerRegisterService (self, service)) goto _NewService_failed;
+
+	return service;
+
+	_NewService_failed:
+	if (service) g_free (service);
+	return NULL;
+}
+*/
 gboolean
 IpcmdServerRegisterService(IpcmdServer *self, IpcmdService *service)
 {
@@ -148,6 +282,17 @@ IpcmdServiceUnregisterService(IpcmdServer *self, IpcmdService *service)
 	self->services_ = g_list_remove (self->services_, service);
 }
 
+IpcmdService*
+IpcmdServerLookupService (IpcmdServer *self, guint16 service_id)
+{
+	GList *l;
+	for (l=self->services_; l!=NULL; l=l->next) {
+		if (((IpcmdService*)l->data)->service_id_ == service_id) {
+			return (IpcmdService *)l->data;
+		}
+	}
+	return NULL;
+}
 void
 IpcmdServerInit(IpcmdServer *self, IpcmdCore *core)
 {
@@ -166,6 +311,10 @@ IpcmdServerFinalize(IpcmdServer *self)
 	// IMPL: free self->operation_contexts_;
 }
 
+
+/*****************************
+ * static functions
+ *****************************/
 static void
 _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data)
 {
@@ -177,7 +326,29 @@ _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type,
 
 
 static void
+_OnOpCtxDeliverToApp(OpHandle handle, const IpcmdOperationInfo *result, gpointer cb_data)
+{
+	IpcmdService *service = (IpcmdService*)cb_data;
+
+	service->exec_(service, handle, result);
+}
+
+
+/* @fn: _RemoveOpCtx
+ * remove IpcmdOpCtx from hashtable. MUST call IpcmdCoreReleaseOpCtx() after this.
+ *
+ */
+static void
 _RemoveOpCtx (gpointer opctx)
 {
 	IpcmdOpCtxUnref(opctx);
+}
+
+static void
+_OnOpCtxFinalized(IpcmdOpCtxId opctx_id, gpointer cb_data)
+{
+	IpcmdServer *server = (IpcmdServer *)cb_data;
+
+	g_hash_table_remove (server->operation_contexts_, &opctx_id);
+	IpcmdCoreReleaseOpCtx (server->core_, opctx_id);
 }

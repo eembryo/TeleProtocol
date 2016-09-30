@@ -35,6 +35,19 @@ IpcmdHostUnref (IpcmdHost *host)
 	ref_dec(&host->ref_);
 }
 
+gboolean
+IpcmdHostIsConnectionless (IpcmdHost *host)
+{
+	switch (host->host_type_) {
+	case IPCMD_UDPv4_HOST:
+		return TRUE;
+	case IPCMD_TCPv4_HOST:
+		return FALSE;
+	default:
+		g_error("IpcmdHost type is strange.");
+		return FALSE;
+	}
+}
 static gboolean
 _Udpv4HostEqual(const IpcmdHost* a, const IpcmdHost* b)
 {
@@ -43,8 +56,15 @@ _Udpv4HostEqual(const IpcmdHost* a, const IpcmdHost* b)
 
 	if (a->host_type_ != IPCMD_UDPv4_HOST || b->host_type_ != IPCMD_UDPv4_HOST) return FALSE;
 
+	{
+		GInetAddress *a_inet_addr = g_inet_socket_address_get_address(udpv4_host_a->inet_sockaddr_);
+		GInetAddress *b_inet_addr = g_inet_socket_address_get_address(udpv4_host_b->inet_sockaddr_);
+		return g_inet_address_equal (a_inet_addr, b_inet_addr);
+	}
+	/*
 	return	g_inet_address_equal (g_inet_socket_address_get_address (udpv4_host_a->inet_sockaddr_), g_inet_socket_address_get_address (udpv4_host_b->inet_sockaddr_)) &&
 			g_inet_socket_address_get_port (udpv4_host_a->inet_sockaddr_) == g_inet_socket_address_get_port (udpv4_host_a->inet_sockaddr_) ? TRUE : FALSE;
+			*/
 }
 
 /* _Udpv4HostFree :
@@ -110,12 +130,28 @@ IpcmdUdpv4HostNew2 (GInetSocketAddress *sock_addr)
 	host->inet_sockaddr_ = g_object_ref(sock_addr);
 
 	ref_init(&host->parent_.ref_, _Udpv4HostFree);
+	IpcmdHostRef(&host->parent_);
 
 	return &host->parent_;
 
 	_IpcmdUdpv4HostNew2_failed:
 	if (host) g_free(host);
 	return NULL;
+}
+
+/* @fn: IpcmdUdpv4HostNew3
+ * wrapper function of IpcmdUdpv4HostNew2
+ */
+IpcmdHost*
+IpcmdUdpv4HostNew3 (const gchar *ip_addr, guint16 port)
+{
+	GInetSocketAddress	*sock_addr = G_INET_SOCKET_ADDRESS(g_inet_socket_address_new_from_string (ip_addr, port));
+	IpcmdHost			*ret;
+
+	ret = IpcmdUdpv4HostNew2 (sock_addr);
+	g_object_unref(sock_addr);
+
+	return ret;
 }
 
 #if 0

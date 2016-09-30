@@ -21,7 +21,7 @@ enum IpcmdChannelStatus {
 };
 
 struct _IpcmdChannel {
-	IpcmdChannelId		channel_id_;		// channel_id_ is fixed when channel is registered at IpcmdBus
+	IpcmdChannelId		channel_id_;		// channel_id_ is assigned when channel is registered at IpcmdBus
 	enum IpcmdChannelStatus	status_;
 	IpcmdHost			*local_host_;
 	IpcmdHost			*remote_host_;
@@ -30,6 +30,7 @@ struct _IpcmdChannel {
 };
 
 gboolean	IpcmdChannelEqualEndpoints(const IpcmdChannel *a, const IpcmdChannel *b);
+gint		IpcmdChannelIsConnectionOriented(const IpcmdChannel *channel);
 
 G_END_DECLS
 

@@ -1,7 +1,7 @@
 /*
- * IpcmdOpStateMachineCLRequest.c
+ * IpcmdOpStateMachineCLSetreq.c
  *
- *  Created on: Sep 22, 2016
+ *  Created on: Sep 29, 2016
  *      Author: hyotiger
  */
 
@@ -32,9 +32,15 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_WFAEXPIRED)
 {
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 
-	//state should be one of OPCONTEXT_STATUS_REQUEST_SENT, OPCONTEXT_STATUS_RESPONSE_SENT or OPCONTEXT_STATUS_NOTIFICATION_SENT
 	ctx->numberOfRetries++;
 	if (ctx->numberOfRetries > ctx->nWFAMaxRetries) {
+		// if state is kOpContextStateSetreqSent or kOpContextStateAckRecv, deliver to application
+		if (op_state->state_ == kOpContextStateSetreqSent || op_state->state_ == kOpContextStateAckRecv) {
+			IpcmdOperationInfoFail info;
+			IpcmdOperationInfoFailInit(&info);
+			info.reason_ = OPCONTEXT_FINCODE_EXCEED_MAX_RETRIES;
+			_DeliverToApplication (ctx, (IpcmdOperationInfo*)&info);
+		}
 		_SetFinalizeState (ctx, OPCONTEXT_FINCODE_EXCEED_MAX_RETRIES);
 		return op_state->state_;
 	}
@@ -59,6 +65,13 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_WFREXPIRED)
 
 	ctx->numberOfRetries++;
 	if (ctx->numberOfRetries > ctx->nWFAMaxRetries) {
+		// if state is kOpContextStateSetreqSent or kOpContextStateAckRecv, deliver to application
+		if (op_state->state_ == kOpContextStateSetreqSent || op_state->state_ == kOpContextStateAckRecv) {
+			IpcmdOperationInfoFail info;
+			IpcmdOperationInfoFailInit(&info);
+			info.reason_ = OPCONTEXT_FINCODE_EXCEED_MAX_RETRIES;
+			_DeliverToApplication (ctx, (IpcmdOperationInfo*)&info);
+		}
 		_SetFinalizeState (ctx, OPCONTEXT_FINCODE_EXCEED_MAX_RETRIES);
 		return kOpContextStateFinalize;
 	}
@@ -94,10 +107,9 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_RecvError)
 		IpcmdCoreTransmit (ctx->core_, ctx->opctx_id_.channel_id_, instant_message);
 		IpcmdMessageUnref(instant_message);
 	}
-	// 3. deliver to application only if current state is kOpContextStateReqSent or kOpContextStateAckRecv.
-	if (op_state->state_ == kOpContextStateReqSent || op_state->state_ == kOpContextStateAckRecv) {
+	// 3. deliver to application only if current state is kOpContextStateSetreqSent or kOpContextStateAckRecv.
+	if (op_state->state_ == kOpContextStateSetreqSent || op_state->state_ == kOpContextStateAckRecv) {
 		IpcmdOperationInfoReceivedMessage info;
-
 		// 3.1 change state to kOpContextStateRespRecv
 		op_state->state_ = kOpContextStateRespRecv;
 		// 3.2 deliver to application
@@ -112,13 +124,13 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_RecvError)
 	return op_state->state_;
 }
 /*******************************************
- * REQUEST Type State Machine
+ * SETREQUEST Type State Machine
  * @ op_state :
  * @ trigger :
  * @ data : expecting IpcmdOperationInfoInvokeMessage*
  *
  *******************************************/
-DECLARE_SM_ENTRY(DoAction_CLREQUEST_Idle_SendRequest)
+DECLARE_SM_ENTRY(DoAction_CLSetreq_Idle_SendSetreq)
 {
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 	const IpcmdOperationInfoInvokeMessage *op_info = data;
@@ -138,7 +150,7 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_Idle_SendRequest)
 	IpcmdOpCtxSetMessage (ctx, message);
 	IpcmdMessageUnref(message);
 	// 3. change state
-	op_state->state_ = kOpContextStateReqSent;
+	op_state->state_ = kOpContextStateSetreqSent;
 	// 4. Send IpcmdMessage
 	IpcmdCoreTransmit (ctx->core_, ctx->opctx_id_.channel_id_ , ctx->message);
 	// 5. Start Timer
@@ -147,7 +159,7 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_Idle_SendRequest)
 	return op_state->state_;
 }
 
-DECLARE_SM_ENTRY(DoAction_CLREQUEST_ReqSent_RecvAck)
+DECLARE_SM_ENTRY(DoAction_CLSetreq_SetreqSent_RecvAck)
 {
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 
@@ -161,7 +173,7 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_ReqSent_RecvAck)
 	return op_state->state_;
 }
 
-DECLARE_SM_ENTRY(DoAction_CLREQUEST_ReqSent_RecvResp)
+DECLARE_SM_ENTRY(DoAction_CLSetreq_SetreqSent_RecvResp)
 {
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 	IpcmdMessage *message = (IpcmdMessage *)data;
@@ -193,7 +205,7 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_ReqSent_RecvResp)
 	return op_state->state_;
 }
 
-DECLARE_SM_ENTRY(DoAction_CLREQUEST_AckRecv_RecvResp)
+DECLARE_SM_ENTRY(DoAction_CLSetreq_AckRecv_RecvResp)
 {
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 	IpcmdMessage *message = (IpcmdMessage *)data;
@@ -225,24 +237,15 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_AckRecv_RecvResp)
 
 	return op_state->state_;
 }
-#define REPLY_ERROR(core, channel_id, ecode, einfo) do {\
-		IpcmdMessage *error_message = IpcmdMessageNew(IPCMD_ERROR_MESSAGE_SIZE); \
-		IpcmdMessageInitVCCPDUHeader (error_message, IpcmdMessageGetVCCPDUServiceID(mesg), \
-				IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUSenderHandleID(mesg), \
-				IpcmdMessageGetVCCPDUProtoVersion(mesg), IPCMD_OPTYPE_ERROR, IPCMD_PAYLOAD_NOTENCODED, 0); \
-		IpcmdMessageSetErrorPayload (error_message, ecode, einfo); \
-		IpcmdCoreTransmit (core, channel_id, error_message); \
-		IpcmdMessageUnref(error_message);\
-}while(0)
 
-DECLARE_SM_ENTRY(DoAction_CLREQUEST_Idle_RecvRequest)
+DECLARE_SM_ENTRY(DoAction_CLSetreq_Idle_RecvSetreq)
 {
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 	IpcmdMessage *message = (IpcmdMessage *)data;
 	IpcmdMessage *instant_message;
 
-	// 1. change state to kOpContextStateReqRecv
-	op_state->state_ = kOpContextStateReqRecv;
+	// 1. change state to kOpContextStateSetreqRecv
+	op_state->state_ = kOpContextStateSetreqRecv;
 	IpcmdOpCtxSetMessage(ctx, message);
 
 	// 2. send ACK
@@ -264,15 +267,9 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_Idle_RecvRequest)
 	}
 
 	return op_state->state_;
-
-	/*
-	_Idle_RecvRequest_fail:
-
-	return -1;
-	*/
 }
 
-DECLARE_SM_ENTRY(DoAction_CLREQUEST_AppProcess_RecvRequest)
+DECLARE_SM_ENTRY(DoAction_CLREQUEST_AppProcess_RecvSetreq)
 {
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 	IpcmdMessage *instant_message;
@@ -305,7 +302,7 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_AppProcess_RecvRequest)
 	return op_state->state_;
 }
 
-DECLARE_SM_ENTRY(DoAction_CLREQUEST_AppProcess_CompletedAppProcess)
+DECLARE_SM_ENTRY(DoAction_CLSetreq_AppProcess_CompletedAppProcess)
 {
 	IpcmdOpCtx 					*ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 	const IpcmdOperationInfoReplyMessage	*op_info = data;	//we are expecting IpcmdOperationInfoReplyMessage from (gpointer)data
@@ -325,7 +322,7 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_AppProcess_CompletedAppProcess)
 		IpcmdMessageUnref (message);
 		break;
 	default:
-		g_warning("Use kOperationInfoPayload when complete operation. sending NOT_OK error message.");
+		g_warning("Use kOperationInfoPayload to complete operation for SETREQUEST type. sending NOT_OK error message.");
 		// send Error message
 		message = _GenerateErrorMessage (ctx, IPCOM_MESSAGE_ECODE_NOT_OK, 0);
 		IpcmdOpCtxSetMessage (ctx, message);
@@ -343,7 +340,7 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_AppProcess_CompletedAppProcess)
 	return op_state->state_;
 }
 
-DECLARE_SM_ENTRY(DoAction_CLREQUEST_RespSent_RecvAck)
+DECLARE_SM_ENTRY(DoAction_CLSetreq_RespSent_RecvAck)
 {
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 
@@ -357,7 +354,7 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_RespSent_RecvAck)
 
 
 void
-IpcmdOpStateMachine_CLREQUEST_Init(IpcmdOpStateMachine *SM)
+IpcmdOpStateMachine_CLSetreq_Init(IpcmdOpStateMachine *SM)
 {
 	guint ns,nt;
 
@@ -367,20 +364,20 @@ IpcmdOpStateMachine_CLREQUEST_Init(IpcmdOpStateMachine *SM)
 		}
 	}
 
-	SM->actions[kOpContextStateIdle][kIpcmdTriggerSendRequest] = DoAction_CLREQUEST_Idle_SendRequest;
-	SM->actions[kOpContextStateIdle][kIpcmdTriggerRecvRequest] = DoAction_CLREQUEST_Idle_RecvRequest;
-	SM->actions[kOpContextStateReqSent][kIpcmdTriggerRecvAck] = DoAction_CLREQUEST_ReqSent_RecvAck;
-	SM->actions[kOpContextStateReqSent][kIpcmdTriggerRecvResp] = DoAction_CLREQUEST_ReqSent_RecvResp;
-	SM->actions[kOpContextStateReqSent][kIpcmdTriggerWFATimeout] = DoAction_XXX_ANY_WFAEXPIRED;
-	SM->actions[kOpContextStateReqSent][kIpcmdTriggerRecvError] = DoAction_XXX_ANY_RecvError;
-	SM->actions[kOpContextStateAckRecv][kIpcmdTriggerRecvResp] = DoAction_CLREQUEST_AckRecv_RecvResp;
+	SM->actions[kOpContextStateIdle][kIpcmdTriggerSendSetreq] = DoAction_CLSetreq_Idle_SendSetreq;
+	SM->actions[kOpContextStateIdle][kIpcmdTriggerRecvSetreq] = DoAction_CLSetreq_Idle_RecvSetreq;
+	SM->actions[kOpContextStateSetreqSent][kIpcmdTriggerRecvAck] = DoAction_CLSetreq_SetreqSent_RecvAck;
+	SM->actions[kOpContextStateSetreqSent][kIpcmdTriggerRecvResp] = DoAction_CLSetreq_SetreqSent_RecvResp;
+	SM->actions[kOpContextStateSetreqSent][kIpcmdTriggerWFATimeout] = DoAction_XXX_ANY_WFAEXPIRED;
+	SM->actions[kOpContextStateSetreqSent][kIpcmdTriggerRecvError] = DoAction_XXX_ANY_RecvError;
+	SM->actions[kOpContextStateAckRecv][kIpcmdTriggerRecvResp] = DoAction_CLSetreq_AckRecv_RecvResp;
 	SM->actions[kOpContextStateAckRecv][kIpcmdTriggerWFRTimeout] = DoAction_XXX_ANY_WFREXPIRED;
 	SM->actions[kOpContextStateAckRecv][kIpcmdTriggerRecvAck] = DoAction_Ignore;
 	SM->actions[kOpContextStateAckRecv][kIpcmdTriggerRecvError] = DoAction_XXX_ANY_RecvError;
-	SM->actions[kOpContextStateAppProcess][kIpcmdTriggerCompletedAppProcess] = DoAction_CLREQUEST_AppProcess_CompletedAppProcess;
-	SM->actions[kOpContextStateAppProcess][kIpcmdTriggerRecvRequest] = DoAction_CLREQUEST_AppProcess_RecvRequest;
-	SM->actions[kOpContextStateRespSent][kIpcmdTriggerRecvAck] = DoAction_CLREQUEST_RespSent_RecvAck;
-	SM->actions[kOpContextStateRespSent][kIpcmdTriggerRecvRequest] = DoAction_Ignore;
+	SM->actions[kOpContextStateAppProcess][kIpcmdTriggerCompletedAppProcess] = DoAction_CLSetreq_AppProcess_CompletedAppProcess;
+	SM->actions[kOpContextStateAppProcess][kIpcmdTriggerRecvSetreq] = DoAction_CLREQUEST_AppProcess_RecvSetreq;
+	SM->actions[kOpContextStateRespSent][kIpcmdTriggerRecvAck] = DoAction_CLSetreq_RespSent_RecvAck;
+	SM->actions[kOpContextStateRespSent][kIpcmdTriggerRecvSetreq] = DoAction_Ignore;
 	SM->actions[kOpContextStateRespSent][kIpcmdTriggerWFATimeout] = DoAction_XXX_ANY_WFAEXPIRED;
 	SM->actions[kOpContextStateRespSent][kIpcmdTriggerRecvError] = DoAction_XXX_ANY_RecvError;
 }
@@ -397,35 +394,11 @@ _DeliverToApplication (IpcmdOpCtx *ctx, const IpcmdOperationInfo *info)
 }
 
 /* @fn : _SetFinalizeState
- * change operation context state to kOpContextStateFinalize. In case that current state is
- * one of kOpContextStateReqSent or kOpContextStateAckRecv, this function will inform to application
- * with finalizing reason.
+ * change operation context state to kOpContextStateFinalize.
  */
 static void
 _SetFinalizeState (IpcmdOpCtx *ctx, IpcmdOpCtxFinCode fincode)
 {
-	union {
-		IpcmdOperationInfoFail	fail_;
-		IpcmdOperationInfoOk	ok_;
-	} ret_info;
-
-	// if state is one of kOpContextStateReqSent or kOpContextStateAckRecv, deliver to application
-	switch (ctx->mOpState.state_) {
-	case kOpContextStateReqSent:
-	case kOpContextStateAckRecv:
-		if (fincode) {
-			ret_info.fail_.parent_.type_ = kOperationInfoFail;
-			ret_info.fail_.reason_ = fincode;
-		}
-		else {
-			ret_info.ok_.parent_.type_ = kOperationInfoOk;
-		}
-		_DeliverToApplication (ctx, (IpcmdOperationInfo*)&ret_info);
-		break;
-	default:
-		break;
-	}
-
 	// call notify_finalizing
 	ctx->mOpState.state_ = kOpContextStateFinalize;
 	ctx->mOpState.fin_code_ = fincode;
@@ -452,3 +425,4 @@ _GenerateErrorMessage (IpcmdOpCtx *ctx, guint8 ecode, guint16 einfo)
 	IpcmdMessageSetErrorPayload (error_message, ecode, einfo);
 	return error_message;
 }
+

@@ -14,10 +14,10 @@ G_BEGIN_DECLS
 
 typedef struct _IpcmdOpStateMachine IpcmdOpStateMachine;
 typedef struct _IpcmdOpState		IpcmdOpState;
-typedef enum _IpcmdOpCtxTrigger 	IpcmdOpCtxTrigger;
-typedef enum _OpContextState		OpContextState;
+typedef enum _IpcmdOpCtxTriggers 	IpcmdOpCtxTriggers;
+typedef enum _OpContextStates		OpContextStates;
 
-enum _IpcmdOpCtxTrigger {
+enum _IpcmdOpCtxTriggers {
 	kIpcmdTriggerStart = 0,
 	/* operation type specific triggers */
 	kIpcmdTriggerRecvRequest=0,
@@ -28,7 +28,7 @@ enum _IpcmdOpCtxTrigger {
 	kIpcmdTriggerSendSetnor,
 	kIpcmdTriggerSendSetreq,
 	kIpcmdTriggerSendNotreq,
-	kIpcmdTriggerSendNotification,
+	kIpcmdTriggerSendNoti,
 	/* common triggers */
 	kIpcmdTriggerRecvResp,
 	kIpcmdTriggerSendResp,
@@ -42,7 +42,7 @@ enum _IpcmdOpCtxTrigger {
 	kIpcmdTriggerEnd,
 };
 
-enum _OpContextState {
+enum _OpContextStates {
 	kOpContextStateStart = 0,
 	/* common state */
 	kOpContextStateIdle = 0,
@@ -61,41 +61,40 @@ enum _OpContextState {
 	kOpContextStateNotreqRecv,
 	kOpContextStateSetreqSent,
 	kOpContextStateSetreqRecv,
+	kOpContextStateNotiSent,
 	/* The end of State */
 	kOpContextStateEnd,
 };
 
 typedef enum {
 	OPCONTEXT_FINCODE_NORMAL = 0,
+	OPCONTEXT_FINCODE_RECEIVE_ERROR_MESSAGE,
 	OPCONTEXT_FINCODE_UNKNOWN_FAILURE,
 	OPCONTEXT_FINCODE_TRANSMIT_FAILED,
 	OPCONTEXT_FINCODE_NO_RESPONSE,
 	OPCONTEXT_FINCODE_APP_ERROR,					// Error is happened while application processes the operation.
 	OPCONTEXT_FINCODE_CANCELLED,
 	OPCONTEXT_FINCODE_EXCEED_MAX_RETRIES,			// = 5
+	OPCONTEXT_FINCODE_INVALID_STATE,
 } IpcmdOpCtxFinCode;
 
 struct _IpcmdOpState {
-	enum _OpContextState	state_;
-	gint					fin_code_;
+	enum _OpContextStates	state_;
 	IpcmdOpStateMachine*	pSM;
+	gint					fin_code_;
 };
 
-typedef gint (*SMDoAction)(IpcmdOpState *op_state, enum _IpcmdOpCtxTrigger trigger, gconstpointer data);
+typedef gint (*SMDoAction)(IpcmdOpState *op_state, enum _IpcmdOpCtxTriggers trigger, gconstpointer data);
 struct _IpcmdOpStateMachine {
 	SMDoAction actions[kOpContextStateEnd][kIpcmdTriggerEnd];
 };
 
 /* connection-less (such as UDP) state machines */
 extern IpcmdOpStateMachine SM_CL_Request;
-/*
-extern IpcmdOpStateMachine SM_CL_SetRequestNoReturn;
-extern IpcmdOpStateMachine SM_CL_SetRequest;
-extern IpcmdOpStateMachine SM_CL_NotificationRequest;
-extern IpcmdOpStateMachine SM_CL_Notification;
-*/
-//Initialize all StateMachines
-void IpcomOpStateMachineInit();
+extern IpcmdOpStateMachine SM_CL_Notreq;
+extern IpcmdOpStateMachine SM_CL_Setnor;
+extern IpcmdOpStateMachine SM_CL_Setreq;
+extern IpcmdOpStateMachine SM_CL_Noti;
 
 G_END_DECLS
 

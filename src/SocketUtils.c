@@ -15,6 +15,8 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <errno.h>
 
 #define MAX_CMSG_SIZE	256
 
