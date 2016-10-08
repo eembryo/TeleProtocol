@@ -41,8 +41,12 @@ gboolean				NetifcMonitorIsBroadcastAddress(NetifcMonitor*, const GInetAddress *
 NetifcMonitorAddressType	NetifcMonitorQueryAddressType(NetifcMonitor*,const GInetAddress *addr);
 
 /* NetifcMonitorGetAllIpv4Addr
+ * Return ipv4 broadcast addresses. caller should free returned list with g_list_free().
  *
- * - need to free returned value with g_list_free()
+ * return:	a list of GInetAddress*
+ * 			NULL on no broadcast addresses
+ *
+ *
  */
 GList*              NetifcMonitorGetAllIpv4Addr(NetifcMonitor*);
 /* NetifcMonitorGetAllIpv4BroadAddr

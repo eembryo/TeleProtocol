@@ -16,6 +16,7 @@ G_BEGIN_DECLS
 enum IpcmdChannelStatus {
 	kChannelClosed,
 	kChannelOpening,
+	kChannelConnecting,
 	kChannelEstablished,
 	kChannelClosing,
 };
@@ -29,8 +30,10 @@ struct _IpcmdChannel {
 	gchar				priv_data_[0];		// Each transport has different private data structure
 };
 
+static inline IpcmdChannelId	IpcmdChannelGetId(const IpcmdChannel *channel) { return channel->channel_id_;}
 gboolean	IpcmdChannelEqualEndpoints(const IpcmdChannel *a, const IpcmdChannel *b);
 gint		IpcmdChannelIsConnectionOriented(const IpcmdChannel *channel);
+void		IpcmdChannelInit (IpcmdChannel *channel, IpcmdHost *local_host, IpcmdHost *remote_host, IpcmdTransport *transport, enum IpcmdChannelStatus init_status);
 
 G_END_DECLS
 

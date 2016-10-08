@@ -14,11 +14,11 @@
 G_BEGIN_DECLS
 
 enum IpcmdOperationInfoType {
-	kOperationInfoOk,		// the message is successfully processed. It may sent from IpcmdCore to application or vice versa.
-	kOperationInfoFail,		// the message is not processed properly. It may sent from IpcmdCore to application or vice versa.
+	kOperationInfoOk,				// the message is successfully processed. It may sent from IpcmdCore to application or vice versa.
+	kOperationInfoFail,				// the message is not processed properly. It may sent from IpcmdCore to application.
 	kOperationInfoReceivedMessage,	// the received message. It is sent from IpcmdCore to application.
-	kOperationInfoReplyMessage,		// the response message from application. It is sent from application to IpcmdCore.
-	kOperationInfoInvokeMessage,	// invocation message from application. It is sent from application to IpcmdCore.
+	kOperationInfoReplyMessage,		// the response or error message from application. It is sent from application to IpcmdCore.
+	kOperationInfoInvokeMessage,	// request message from application. It is sent from application to IpcmdCore.
 };
 
 struct _IpcmdOperationPayload {
@@ -46,17 +46,15 @@ struct _IpcmdOperationInfoInvokeMessage {
 };
 
 struct _IpcmdOperationInfoReplyMessage {
-	struct _IpcmdOperationInfo parent_;
+	struct _IpcmdOperationInfo 		parent_;
 	guint8							op_type_;
 	struct _IpcmdOperationPayload	payload_;
 };
 
 struct _IpcmdOperationInfoReceivedMessage {
 	struct _IpcmdOperationInfo		parent_;
-	//struct _IpcmdOperationHeader	header_;
-	//struct _IpcmdOperationPayload	payload_;
 	IpcmdMessage					*raw_message_;
-	IpcmdHost	*sender_;
+	IpcmdHost						*sender_;
 };
 
 struct _IpcmdOperationInfoFail {
@@ -79,7 +77,7 @@ struct _IpcmdOperationCallback {
 	/* cb_destroy :
 	 * called to release cb_data memory when IpcmdOperationResultCallback is destroyed. If it is NULL, 'cb_data' is not released.
 	 */
-	gint		(*cb_destroy)(gpointer cb_data);
+	void		(*cb_destroy)(gpointer cb_data);
 	gpointer	cb_data;
 };
 

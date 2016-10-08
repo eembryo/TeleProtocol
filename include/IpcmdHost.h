@@ -8,10 +8,10 @@
 
 G_BEGIN_DECLS
 
-enum IpcmdHostType {
+enum IpcmdHostLinkType {
 	/* INET hosts */
-	IPCMD_UDPv4_HOST = 0,
-	IPCMD_TCPv4_HOST,
+	IPCMD_HOSTLINK_UDPv4 = 0,
+	IPCMD_HOSTLINK_TCPv4,
 	//IPCMD_UDPv6_HOST,
 	//IPCMD_TCPV6_HOST,
 
@@ -22,13 +22,15 @@ enum IpcmdHostType {
 
 /* IpcmdHostHostCompare: return TRUE if two instances are same or return FALSE */
 typedef gboolean (*IpcmdHostEqual)(const IpcmdHost* a, const IpcmdHost* b);
+typedef IpcmdHost* (*IpcmdHostDup)(const IpcmdHost* a);
 
 /*
  * IpcmdHost: abstract class for containing location information of specific device.
  */
 struct _IpcmdHost {
-	enum IpcmdHostType	host_type_;
+	enum IpcmdHostLinkType	host_type_;
 	IpcmdHostEqual		equal;
+	IpcmdHostDup		duplicate;
 	struct ref			ref_;
 };
 
@@ -37,6 +39,7 @@ struct _IpcmdHost {
 gpointer	IpcmdHostRef (IpcmdHost *host);
 void		IpcmdHostUnref (IpcmdHost *host);
 gboolean	IpcmdHostIsConnectionless(IpcmdHost *host);
+static inline guint		IpcmdHostType (const IpcmdHost *host) {return host->host_type_;}
 
 /**
  * IpcmdUdpv4Host: contains IPv4 address and UDP port information.
@@ -48,7 +51,7 @@ struct _IpcmdUdpv4Host {
 typedef struct _IpcmdUdpv4Host	IpcmdUdpv4Host;
 
 static inline IpcmdUdpv4Host* IPCMD_UDPv4HOST(IpcmdHost *obj) {
-	if (obj->host_type_ != IPCMD_UDPv4_HOST) return NULL;
+	if (obj->host_type_ != IPCMD_HOSTLINK_UDPv4) return NULL;
 	return container_of (obj, struct _IpcmdUdpv4Host, parent_);
 }
 

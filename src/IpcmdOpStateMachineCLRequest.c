@@ -16,6 +16,7 @@ static void	_DeliverToApplication (IpcmdOpCtx *ctx, const IpcmdOperationInfo *in
 static void	_SetFinalizeState (IpcmdOpCtx *ctx, IpcmdOpCtxFinCode fincode);
 static inline IpcmdMessage*	_GenerateAckMessage (IpcmdOpCtx *ctx);
 static inline IpcmdMessage*	_GenerateErrorMessage (IpcmdOpCtx *ctx, guint8 ecode, guint16 einfo);
+static inline gboolean _IsDeliverableState (enum _OpContextStates state);
 
 /* *******************************
  * Common Actions
@@ -58,14 +59,14 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_WFREXPIRED)
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 
 	ctx->numberOfRetries++;
-	if (ctx->numberOfRetries > ctx->nWFAMaxRetries) {
+	if (ctx->numberOfRetries > ctx->nWFRMaxRetries) {
 		_SetFinalizeState (ctx, OPCONTEXT_FINCODE_EXCEED_MAX_RETRIES);
 		return kOpContextStateFinalize;
 	}
 	//retransmit message
 	IpcmdCoreTransmit (ctx->core_, ctx->opctx_id_.channel_id_ , ctx->message);
 	//reset timer
-	IpcmdOpCtxSetTimer(ctx, CalculateTimeoutInterval(ctx->nWFABaseTimeout, ctx->nWFAIncreaseTimeout, ctx->numberOfRetries), ctx->OnWFAExpired);
+	IpcmdOpCtxSetTimer(ctx, CalculateTimeoutInterval(ctx->nWFRBaseTimeout, ctx->nWFRIncreaseTimeout, ctx->numberOfRetries), ctx->OnWFRExpired);
 
 	return op_state->state_;
 }
@@ -95,7 +96,7 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_RecvError)
 		IpcmdMessageUnref(instant_message);
 	}
 	// 3. deliver to application only if current state is kOpContextStateReqSent or kOpContextStateAckRecv.
-	if (op_state->state_ == kOpContextStateReqSent || op_state->state_ == kOpContextStateAckRecv) {
+	if (_IsDeliverableState(op_state->state_)) {
 		IpcmdOperationInfoReceivedMessage info;
 
 		// 3.1 change state to kOpContextStateRespRecv
@@ -451,4 +452,8 @@ _GenerateErrorMessage (IpcmdOpCtx *ctx, guint8 ecode, guint16 einfo)
 	IpcmdMessageInitVCCPDUHeader (error_message, ctx->serviceId, ctx->operationId, ctx->opctx_id_.sender_handle_id_, IPCMD_PROTOCOL_VERSION, IPCMD_OPTYPE_ERROR, IPCMD_PAYLOAD_NOTENCODED, 0);
 	IpcmdMessageSetErrorPayload (error_message, ecode, einfo);
 	return error_message;
+}
+
+static gboolean _IsDeliverableState (enum _OpContextStates state) {
+	return state==kOpContextStateReqSent || state==kOpContextStateAckRecv ? TRUE : FALSE;
 }

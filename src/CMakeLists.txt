@@ -18,6 +18,7 @@ set(SRCS
 	IpcmdOpStateMachineCLNoti.c
 	IpcmdConfig.c
 	IpcmdService.c
+	IpcmdAgent.c
 	NetifcMonitor.c
 	SocketUtils.c
    )

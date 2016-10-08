@@ -39,12 +39,12 @@ gboolean
 IpcmdHostIsConnectionless (IpcmdHost *host)
 {
 	switch (host->host_type_) {
-	case IPCMD_UDPv4_HOST:
+	case IPCMD_HOSTLINK_UDPv4:
 		return TRUE;
-	case IPCMD_TCPv4_HOST:
+	case IPCMD_HOSTLINK_TCPv4:
 		return FALSE;
 	default:
-		g_error("IpcmdHost type is strange.");
+		g_error("IpcmdHostLink type is strange.");
 		return FALSE;
 	}
 }
@@ -54,7 +54,7 @@ _Udpv4HostEqual(const IpcmdHost* a, const IpcmdHost* b)
 	struct _IpcmdUdpv4Host* udpv4_host_a = (IpcmdUdpv4Host*)a;
 	struct _IpcmdUdpv4Host* udpv4_host_b = (IpcmdUdpv4Host*)b;
 
-	if (a->host_type_ != IPCMD_UDPv4_HOST || b->host_type_ != IPCMD_UDPv4_HOST) return FALSE;
+	if (a->host_type_ != IPCMD_HOSTLINK_UDPv4 || b->host_type_ != IPCMD_HOSTLINK_UDPv4) return FALSE;
 
 	{
 		GInetAddress *a_inet_addr = g_inet_socket_address_get_address(udpv4_host_a->inet_sockaddr_);
@@ -67,6 +67,11 @@ _Udpv4HostEqual(const IpcmdHost* a, const IpcmdHost* b)
 			*/
 }
 
+static IpcmdHost*
+_Udpv4HostDuplicate(const IpcmdHost *host)
+{
+	return IpcmdUdpv4HostNew2( ((struct _IpcmdUdpv4Host*)host)->inet_sockaddr_);
+}
 /* _Udpv4HostFree :
  * This is called when reference count for IpcmdHost reaches to zero.
  *
@@ -96,8 +101,9 @@ IpcmdUdpv4HostNew (GInetAddress *address, guint16 port)
 
 	if (!host) goto _IpcmdUdpv4HostNew_failed;
 
-	host->parent_.host_type_ = IPCMD_UDPv4_HOST;
+	host->parent_.host_type_ = IPCMD_HOSTLINK_UDPv4;
 	host->parent_.equal = _Udpv4HostEqual;
+	host->parent_.duplicate = _Udpv4HostDuplicate;
 	host->inet_sockaddr_ = G_INET_SOCKET_ADDRESS (g_inet_socket_address_new (address, port));
 	if (host->inet_sockaddr_ == NULL) goto _IpcmdUdpv4HostNew_failed;
 
@@ -125,8 +131,9 @@ IpcmdUdpv4HostNew2 (GInetSocketAddress *sock_addr)
 
 	if (!host) goto _IpcmdUdpv4HostNew2_failed;
 
-	host->parent_.host_type_ = IPCMD_UDPv4_HOST;
+	host->parent_.host_type_ = IPCMD_HOSTLINK_UDPv4;
 	host->parent_.equal = _Udpv4HostEqual;
+	host->parent_.duplicate = _Udpv4HostDuplicate;
 	host->inet_sockaddr_ = g_object_ref(sock_addr);
 
 	ref_init(&host->parent_.ref_, _Udpv4HostFree);

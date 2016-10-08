@@ -20,7 +20,7 @@ OpHandle	IpcmdClientInvokeOperation(IpcmdClient *self, guint16 operation_id, gui
 gint		IpcmdClientSubscribeNotification(IpcmdClient *self, guint16 operation_id, gboolean is_cyclic, const IpcmdOperationCallback *cb);
 void		IpcmdClientUnsubscribeNotification(IpcmdClient *self, guint16 operation_id);
 void		IpcmdClientFinalize (IpcmdClient *self);
-
+void		IpcmdClientDestroy (IpcmdClient *self);
 G_END_DECLS
 
 #endif /* INCLUDE_IPCMDCLIENT_H_ */

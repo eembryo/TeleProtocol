@@ -113,6 +113,7 @@ IpcmdBusRegisterChannel(IpcmdBus *self, IpcmdChannel *channel)
 
 	g_hash_table_insert (self->channels_, GINT_TO_POINTER(channel->channel_id_), channel);
 
+	// Notify new channel is added
 	_NotifyChannelEvent(self, channel->channel_id_, kBusEventChannelAdd, NULL);
 
 	return channel->channel_id_;
@@ -129,12 +130,13 @@ IpcmdBusUnregisterChannel(IpcmdBus *self, IpcmdChannel *channel)
 {
 	if (channel->channel_id_ == INVALID_CHANNEL_ID) return;
 
+	// Notify a channel is removed
+	_NotifyChannelEvent(self, channel->channel_id_, kBusEventChannelRemove, NULL);
+
 	/* NOTE: the hash key with 'channel->channel_id_' should exist in self->channels_ hashtable.
 	 * And its data should be 'channel'.
 	 */
 	g_hash_table_remove (self->channels_, GINT_TO_POINTER(channel->channel_id_));
-
-	_NotifyChannelEvent(self, channel->channel_id_, kBusEventChannelRemove, NULL);
 }
 
 /* IpcmdBusFindChannelsByPeerHost:
@@ -159,6 +161,17 @@ IpcmdBusFindChannelIdsByPeerHost(IpcmdBus *self, IpcmdHost *remote)
 	return ret_list;
 }
 
+gboolean
+IpcmdBusIsChannelIdForPeerHost(IpcmdBus *self, IpcmdChannelId channel_id, IpcmdHost *remote)
+{
+	IpcmdChannel *channel = IpcmdBusFindChannelById (self, channel_id);
+
+	if (!channel) return FALSE;
+	if (remote->equal(remote, channel->remote_host_)) return TRUE;
+
+	return FALSE;
+}
+
 /* IpcmdBusAttachTransport :
  * Attach transport to bus.
  *
@@ -174,8 +187,7 @@ IpcmdBusAttachTransport(IpcmdBus *self, IpcmdTransport *transport)
 	}
 
 	self->transports_ = g_list_append (self->transports_, transport);
-	transport->bus_ = self;
-
+	transport->OnAttachedToBus (transport, self);
 	g_source_attach (transport->source_, IpcmdCoreGetGMainContext(self->core_));
 
 	return TRUE;
@@ -184,9 +196,15 @@ IpcmdBusAttachTransport(IpcmdBus *self, IpcmdTransport *transport)
 void
 IpcmdBusDetachTransport(IpcmdBus *self, IpcmdTransport *transport)
 {
+	GList *l = g_list_find (self->transports_, transport);
+
+	if (l==NULL) return;
+
+	// stop GSource in the transport
 	if (!g_source_is_destroyed(transport->source_)) g_source_destroy (transport->source_);
-	self->transports_ = g_list_remove (self->transports_, transport);
-	transport->bus_ = NULL;
+	transport->OnDetachedFromBus (transport, self);
+	// detach from the list
+	self->transports_ = g_list_delete_link (self->transports_, l);
 }
 
 /* IpcmdBusTx :
@@ -248,6 +266,19 @@ IpcmdBusRemoveEventListener(IpcmdBus *self, IpcmdBusEventListener *listener)
 	self->event_listeners_ = g_list_remove (self->event_listeners_, listener);
 }
 
+/* @fn: IpcmdBusIsChannelConnectionOriented
+ * return -1 on error
+ * return 0 on connection-less channel.
+ * return 1 on connection-oriented channel.
+ */
+gint
+IpcmdBusIsChannelConnectionOriented(IpcmdBus *self, IpcmdChannelId id)
+{
+	IpcmdChannel *channel;
+	channel = IpcmdBusFindChannelById (self, id);
+	return IpcmdChannelIsConnectionOriented (channel);
+}
+
 /* _NotifyChannelEvent :
  * Inform a channel event to all subscribers
  *
@@ -261,6 +292,7 @@ _NotifyChannelEvent(IpcmdBus *self, IpcmdChannelId id, const IpcmdBusEventType e
 {
 	GList *l;
 
+	g_debug("%s: ChannelId=%d, type=%d", __func__, id, ev_type);
 	for (l = self->event_listeners_; l != NULL; l = l->next) {
 		((IpcmdBusEventListener*)(l->data))->OnChannelEvent (l->data, id, ev_type, ev_data);
 	}

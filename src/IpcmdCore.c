@@ -7,9 +7,11 @@
 
 
 #include "../include/IpcmdCore.h"
+#include "../include/IpcmdHost.h"
 #include "../include/IpcmdServer.h"
 #include "../include/IpcmdClient.h"
 #include "../include/IpcmdServerImpl.h"
+#include "../include/IpcmdClientImpl.h"
 #include "../include/IpcmdMessage.h"
 #include "../include/IpcmdBus.h"
 #include "../include/IpcmdOperationContext.h"
@@ -67,15 +69,9 @@ IpcmdCoreFinalize(IpcmdCore *self)
 }
 
 void
-IpcmdCoreUnregisterClient(IpcmdCore *self, IpcmdClient *client)
-{
-	self->clients_ = g_list_remove (self->clients_, client);
-}
-
-void
 IpcmdCoreDispatch(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg)
 {
-	gint ret;
+	gint ret = -1;
 
 	switch (IpcmdMessageGetVCCPDUOpType(mesg)) {
 	case IPCMD_OPTYPE_REQUEST:
@@ -189,15 +185,26 @@ gboolean
 IpcmdCoreRegisterClient(IpcmdCore *self, IpcmdClient *client)
 {
 	GList *l;
+	IpcmdClient *tmp;
 
 	for (l = self->clients_; l != NULL; l = l->next) {
-		if ( IpcmdClientGetServiceid((IpcmdClient*)l->data) == IpcmdClientGetServiceid(client) ) {	// each client has different service_id
+		tmp = (IpcmdClient*)l->data;
+		if ( IpcmdClientGetServiceid(tmp) == IpcmdClientGetServiceid(client) && IpcmdHostType(tmp->server_host_) == IpcmdHostType(client->server_host_)) {	// each client has different service_id
 			return FALSE;
 		}
 	}
 
+	client->OnRegisteredToCore (client, self);
 	self->clients_ = g_list_append (self->clients_, client);
+
 	return TRUE;
+}
+
+void
+IpcmdCoreUnregisterClient(IpcmdCore *self, IpcmdClient *client)
+{
+	client->OnUnregisteredFromCore (client, self);
+	self->clients_ = g_list_remove (self->clients_, client);
 }
 
 static void

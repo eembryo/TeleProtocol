@@ -10,20 +10,21 @@
 #include "../include/IpcmdServer.h"
 #include "../include/IpcmdMessage.h"
 
-#define TRANSPORT_LOCAL_UDP_ADDRESS	"192.168.0.10"
+#define TRANSPORT_LOCAL_UDP_ADDRESS	"192.168.0.13"
 #define TRANSPORT_LOCAL_UDP_PORT	40000
-#define TRANSPORT_REMOTE_UDP_ADDRESS "192.168.0.10"
+#define TRANSPORT_REMOTE_UDP_ADDRESS "192.168.0.13"
 #define TRANSPORT_REMOTE_UDP_PORT	50000
 
 #define CLIENT_REMOTE_SERVICE_ID	0x00A1
-#define CLIENT_REMOTE_SERVICE_HOST_UDP_ADDRESS	"192.168.0.10"
+#define CLIENT_REMOTE_SERVICE_HOST_UDP_ADDRESS	"192.168.0.13"
 #define CLIENT_REMOTE_SERVICE_HOST_UDP_PORT		50000
 
 #define SERVER_PROVIDE_SERVICE_ID	0x00A3
 
 static void
-server_service_exec_callback (IpcmdService *self, OpHandle handle, const IpcmdOperationInfo *operation)
+server_service_exec_callback (OpHandle handle, const IpcmdOperationInfo *operation, gpointer cb_data)
 {
+	IpcmdService *service = (IpcmdService*)cb_data;
 	gchar payload_data[10] = {0xff, 0xff, 0xff,0xff, 0xff, 0xff,0xff, 0xff, 0xff,0xff};
 	const IpcmdOperationInfoReceivedMessage *recv_mesg = (const IpcmdOperationInfoReceivedMessage*)operation;
 	IpcmdMessage *raw_mesg = (IpcmdMessage*)recv_mesg->raw_message_;
@@ -40,16 +41,16 @@ server_service_exec_callback (IpcmdService *self, OpHandle handle, const IpcmdOp
 
 	switch (IpcmdMessageGetVCCPDUOpType(raw_mesg)) {
 	case IPCMD_OPTYPE_REQUEST:
-		IpcmdServiceCompleteOperation (self, handle, (IpcmdOperationInfo*)&reply_info);
+		IpcmdServiceCompleteOperation (service, handle, (IpcmdOperationInfo*)&reply_info);
 		break;
 	case IPCMD_OPTYPE_SETREQUEST_NORETURN:
-		IpcmdServiceCompleteOperation (self, handle, (IpcmdOperationInfo*)&ok_info);
+		IpcmdServiceCompleteOperation (service, handle, (IpcmdOperationInfo*)&ok_info);
 		break;
 	case IPCMD_OPTYPE_SETREQUEST:
-		IpcmdServiceCompleteOperation (self, handle, (IpcmdOperationInfo*)&reply_info);
+		IpcmdServiceCompleteOperation (service, handle, (IpcmdOperationInfo*)&reply_info);
 		break;
 	case IPCMD_OPTYPE_NOTIFICATION_REQUEST:
-		IpcmdServiceCompleteOperation (self, handle, (IpcmdOperationInfo*)&ok_info);
+		IpcmdServiceCompleteOperation (service, handle, (IpcmdOperationInfo*)&ok_info);
 		break;
 	default:
 		g_error("will not happened");
@@ -83,7 +84,7 @@ ApplicationLifetime(gpointer data)
 {
 	IpcmdClient *client = (IpcmdClient*)data;
 	IpcmdOperationCallback	cbs;
-	static count = 0;
+	static int count = 0;
 
 	/* Invoke Operation */
 	cbs.cb_data = client;
@@ -99,11 +100,10 @@ ApplicationLifetime(gpointer data)
 int main()
 {
 	IpcmdClient	*client;
-	IpcmdServer *server;
+	//IpcmdServer *server;
 	IpcmdCore 	*core;
 	IpcmdBus	*bus;
 	IpcmdTransport	*transport;
-	//IpcmdOperationCallback	cbs;
 	GMainLoop	*loop = g_main_loop_new (g_main_context_default(), FALSE);
 
 	core = IpcmdCoreNew (g_main_context_default());
@@ -127,9 +127,14 @@ int main()
 	/* Provide server service (0x00A3) */
 	{
 		IpcmdService	*server_service = g_malloc(sizeof(struct _IpcmdService));
+		IpcmdOperationCallback	cbs = {
+				.cb_func = server_service_exec_callback,
+				.cb_data = server_service,
+				.cb_destroy = NULL
+		};
 		server_service->server_ = IpcmdCoreGetServer (core);
 		server_service->service_id_ = SERVER_PROVIDE_SERVICE_ID;
-		server_service->exec_ = server_service_exec_callback;
+		server_service->exec_ = cbs;
 		IpcmdServerRegisterService (IpcmdCoreGetServer (core), server_service);
 	}
 

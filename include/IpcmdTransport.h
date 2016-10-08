@@ -19,23 +19,22 @@ enum IpcmdTransportType {
 	kIpcmdTransportTcpv4,
 };
 
-typedef gint 				(*IpcmdTransportTransmit)			(IpcmdTransport*,const IpcmdChannel*,IpcmdMessage*);
-//typedef IpcomConnection*	(*_IpcomTransportGetBroadConnection)(IpcomTransport*);
-typedef gboolean 			(*IpcmdTransportBind)				(IpcmdTransport*,const gchar *ip,const guint16 port);
-typedef gint				(*IpcmdTransportConnect)			(IpcmdTransport*,const gchar *ip,const guint16 port);
-typedef gboolean			(*IpcmdTransportListen)			(IpcmdTransport*,const gint backlog);
 //typedef gboolean			(*_IpcomTransportCloseChannel)		(IpcmdTransport*,const IpcmdChannelId channel_id);
 
 struct _IpcmdTransport {
 	IpcmdBus					*bus_;	// will be set when attaching to IpcmdBus
+	void						(*OnAttachedToBus)(IpcmdTransport *transport, IpcmdBus *bus);
+	void						(*OnDetachedFromBus)(IpcmdTransport *transport, IpcmdBus *bus);
 
 	/* following items should be set by inherited class before attaching. */
 	GSource						*source_;	// source_ is attached to mainloop at IpcmdBusAttachTransport().
 	enum IpcmdTransportType		type_;
-	IpcmdTransportBind			bind;
-	IpcmdTransportConnect		connect;
-	IpcmdTransportListen		listen;
-	IpcmdTransportTransmit		transmit;
+	gboolean					(*bind)(IpcmdTransport*,const gchar *ip,const guint16 port);
+	gint						(*connect)(IpcmdTransport *transport,const gchar *ip,const guint16 port);
+	gboolean					(*listen)(IpcmdTransport *transport, const gint backlog);
+	gint						(*transmit)(IpcmdTransport *transport, const IpcmdChannel *channel, IpcmdMessage *message);
+	gboolean					(*EnableBroadcast)(IpcmdTransport *transport);
+	void						(*DisableBroadcast)(IpcmdTransport *transport);
 };
 
 G_END_DECLS

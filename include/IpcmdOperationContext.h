@@ -21,7 +21,7 @@ typedef struct _IpcmdOpCtxDeliverToAppCallback {
 	/* cb_destroy :
 	 * called to release cb_data memory when IpcmdOperationResultCallback is destroyed. If it is NULL, 'cb_data' is not released.
 	 */
-	gint		(*cb_destroy)(gpointer cb_data);
+	void		(*cb_destroy)(gpointer cb_data);
 	gpointer	cb_data;
 } IpcmdOpCtxDeliverToAppCallback;
 
@@ -39,7 +39,8 @@ struct _IpcmdOperationContextId {
 	guint32			sender_handle_id_;
 } __attribute__ ((packed));
 
-static const IpcmdOpCtxId VoidOpCtxId;
+const IpcmdOpCtxId VoidOpCtxId;
+#define VoidOpCtxId VoidOpHandle
 
 struct _IpcmdOperationContext {
 	struct _IpcmdOperationContextId		opctx_id_;	// unique id for each operation context
@@ -75,28 +76,28 @@ struct _IpcmdOperationContext {
 	struct ref							_ref;
 };
 
-IpcmdOpCtx*								IpcmdOpCtxNew();
-void									IpcmdOpCtxInit (IpcmdOpCtx *ctx,
-														IpcmdCore *core,
-														guint16	service_id,
-														guint16	operation_id,
-														guint16	op_type,
-														guint8	flags,
-														const IpcmdOpCtxDeliverToAppCallback	*deliver_to_app,
-														const IpcmdOpCtxFinalizeCallback		*notify_finalizing);
-guint									IpcmdOpCtxIdHashfunc(gconstpointer key);
-gboolean								IpcmdOpCtxIdEqual(gconstpointer a, gconstpointer b);
-void									IpcmdOpCtxSetMessage(IpcmdOpCtx *ctx, IpcmdMessage *mesg);
-gint									IpcmdOpCtxTrigger(IpcmdOpCtx *ctx, gint trigger, gconstpointer data);
-//gboolean								IpcomOpContextSetCallbacks(IpcomOpContext *opContext, IpcomReceiveMessageCallback recv_cb, IpcomOpCtxDestroyNotify OnNotify, void *userdata);
+IpcmdOpCtx*				IpcmdOpCtxNew();
+void					IpcmdOpCtxInit (IpcmdOpCtx *ctx,
+										IpcmdCore *core,
+										guint16	service_id,
+										guint16	operation_id,
+										guint16	op_type,
+										guint8	flags,
+										const IpcmdOpCtxDeliverToAppCallback	*deliver_to_app,
+										const IpcmdOpCtxFinalizeCallback		*notify_finalizing);
+guint					IpcmdOpCtxIdHashfunc(gconstpointer key);
+gboolean				IpcmdOpCtxIdEqual(gconstpointer a, gconstpointer b);
+void					IpcmdOpCtxSetMessage(IpcmdOpCtx *ctx, IpcmdMessage *mesg);
+gint					IpcmdOpCtxTrigger(IpcmdOpCtx *ctx, gint trigger, gconstpointer data);
+//gboolean				IpcomOpContextSetCallbacks(IpcomOpContext *opContext, IpcomReceiveMessageCallback recv_cb, IpcomOpCtxDestroyNotify OnNotify, void *userdata);
 
-gboolean								IpcmdOpCtxStartWFATimer(IpcmdOpCtx *opctx);
-gboolean								IpcmdOpCtxStartWFRTimer(IpcmdOpCtx *opctx);
-gboolean								IpcmdOpCtxSetTimer(IpcmdOpCtx *opContext, gint milliseconds, GSourceFunc func);
-gboolean								IpcmdOpCtxCancelTimer(IpcmdOpCtx *opContext);
+gboolean				IpcmdOpCtxStartWFATimer(IpcmdOpCtx *opctx);
+gboolean				IpcmdOpCtxStartWFRTimer(IpcmdOpCtx *opctx);
+gboolean				IpcmdOpCtxSetTimer(IpcmdOpCtx *opContext, gint milliseconds, GSourceFunc func);
+gboolean				IpcmdOpCtxCancelTimer(IpcmdOpCtx *opContext);
 
-IpcmdOpCtx*								IpcmdOpCtxRef(IpcmdOpCtx *ctx);
-void									IpcmdOpCtxUnref(IpcmdOpCtx *ctx);
+IpcmdOpCtx*				IpcmdOpCtxRef(IpcmdOpCtx *ctx);
+void					IpcmdOpCtxUnref(IpcmdOpCtx *ctx);
 
 inline gboolean			IpcmdOpCtxIdIsMatch(const IpcmdOpCtxId *a, const IpcmdOpCtxId *b)
 {

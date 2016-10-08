@@ -1,5 +1,5 @@
 /*
- * ServerTest.c
+ * ServerTestNoti.c
  *
  *  Created on: Sep 28, 2016
  *      Author: hyotiger
@@ -27,7 +27,7 @@
 #define CLIENT_REMOTE_SERVICE_HOST_UDP_PORT		40000
 
 #define SERVER_PROVIDE_SERVICE_ID	0x00A1
-
+#define SERVER_NOTIFICATION_OPERATION_ID	0x0107
 /*
 struct _IpcmdOperationPayload {
 	guint8		type_;	//'data_' encoding type: 0 on encoded message, 1 on Normal message
@@ -58,6 +58,7 @@ server_service_exec_callback (OpHandle handle, const IpcmdOperationInfo *operati
 
 	IpcmdOperationInfoOkInit(&ok_info);
 
+	g_usleep (100*1000);
 	switch (IpcmdMessageGetVCCPDUOpType(raw_mesg)) {
 	case IPCMD_OPTYPE_REQUEST:
 		IpcmdServiceCompleteOperation (service, handle, (IpcmdOperationInfo*)&reply_info);
@@ -101,9 +102,18 @@ op_callback (OpHandle handle, const IpcmdOperationInfo *result, gpointer cb_data
 static gboolean
 ApplicationLifetime(gpointer data)
 {
-	GMainLoop *loop = (GMainLoop*)data;
-	g_main_loop_quit(loop);
-	return G_SOURCE_REMOVE;
+	gchar payload_data[10] = {0xf0, 0xf0,0xf0, 0xf0,0xf0, 0xf0,0xf0, 0xf0,0xf0, 0xf0};
+	IpcmdService *service = (IpcmdService *)data;
+	IpcmdOperationInfoReplyMessage reply_info;
+	IpcmdOperationInfoReplyMessageInit(&reply_info);
+
+	reply_info.op_type_ = IPCMD_OPTYPE_NOTIFICATION;
+	reply_info.payload_.data_ = payload_data;
+	reply_info.payload_.length_ = 10;
+	reply_info.payload_.type_ = IPCMD_PAYLOAD_NOTENCODED;
+
+	IpcmdServiceInformNotification (service, SERVER_NOTIFICATION_OPERATION_ID, &reply_info);
+	return G_SOURCE_CONTINUE;
 }
 
 int main()
@@ -126,11 +136,11 @@ int main()
 
 	/* Connect to service (0x00A1)*/
 	{
-		IpcmdHost	*server_host;
+		IpcmdHost	*peer_host;
 
-		server_host = IpcmdUdpv4HostNew3 (CLIENT_REMOTE_SERVICE_HOST_UDP_ADDRESS, CLIENT_REMOTE_SERVICE_HOST_UDP_PORT);
-		client = IpcmdClientNew (core, CLIENT_REMOTE_SERVICE_ID, server_host);
-		IpcmdHostUnref(server_host);
+		peer_host = IpcmdUdpv4HostNew3 (CLIENT_REMOTE_SERVICE_HOST_UDP_ADDRESS, CLIENT_REMOTE_SERVICE_HOST_UDP_PORT);
+		client = IpcmdClientNew (core, CLIENT_REMOTE_SERVICE_ID, peer_host);
+		IpcmdHostUnref(peer_host);
 		IpcmdCoreRegisterClient(core, client);
 	}
 	/* Provide server service (0x00A3) */
@@ -145,6 +155,15 @@ int main()
 		server_service->service_id_ = SERVER_PROVIDE_SERVICE_ID;
 		server_service->exec_ = cbs;
 		IpcmdServerRegisterService (IpcmdCoreGetServer (core), server_service);
+
+		// Add static subscriber
+		//IpcmdService *self, guint16 operation_id, gboolean is_cyclic, IpcmdHost *subscriber, gboolean is_static_member);
+		{
+			IpcmdHost *static_host = IpcmdUdpv4HostNew3 (CLIENT_REMOTE_SERVICE_HOST_UDP_ADDRESS, CLIENT_REMOTE_SERVICE_HOST_UDP_PORT);
+			IpcmdServiceAddSubscriber (server_service, SERVER_NOTIFICATION_OPERATION_ID, FALSE, static_host, TRUE);
+			IpcmdHostUnref (static_host);
+		}
+		g_timeout_add(3000, ApplicationLifetime, server_service); //send notification every 3 seconds
 	}
 
 #if 0

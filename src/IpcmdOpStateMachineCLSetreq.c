@@ -16,6 +16,7 @@ static void	_DeliverToApplication (IpcmdOpCtx *ctx, const IpcmdOperationInfo *in
 static void	_SetFinalizeState (IpcmdOpCtx *ctx, IpcmdOpCtxFinCode fincode);
 static inline IpcmdMessage*	_GenerateAckMessage (IpcmdOpCtx *ctx);
 static inline IpcmdMessage*	_GenerateErrorMessage (IpcmdOpCtx *ctx, guint8 ecode, guint16 einfo);
+static inline gboolean _IsDeliverableState (enum _OpContextStates state);
 
 /* *******************************
  * Common Actions
@@ -34,8 +35,7 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_WFAEXPIRED)
 
 	ctx->numberOfRetries++;
 	if (ctx->numberOfRetries > ctx->nWFAMaxRetries) {
-		// if state is kOpContextStateSetreqSent or kOpContextStateAckRecv, deliver to application
-		if (op_state->state_ == kOpContextStateSetreqSent || op_state->state_ == kOpContextStateAckRecv) {
+		if (_IsDeliverableState(op_state->state_)) {
 			IpcmdOperationInfoFail info;
 			IpcmdOperationInfoFailInit(&info);
 			info.reason_ = OPCONTEXT_FINCODE_EXCEED_MAX_RETRIES;
@@ -64,9 +64,9 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_WFREXPIRED)
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 
 	ctx->numberOfRetries++;
-	if (ctx->numberOfRetries > ctx->nWFAMaxRetries) {
+	if (ctx->numberOfRetries > ctx->nWFRMaxRetries) {
 		// if state is kOpContextStateSetreqSent or kOpContextStateAckRecv, deliver to application
-		if (op_state->state_ == kOpContextStateSetreqSent || op_state->state_ == kOpContextStateAckRecv) {
+		if (_IsDeliverableState(op_state->state_)) {
 			IpcmdOperationInfoFail info;
 			IpcmdOperationInfoFailInit(&info);
 			info.reason_ = OPCONTEXT_FINCODE_EXCEED_MAX_RETRIES;
@@ -78,7 +78,7 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_WFREXPIRED)
 	//retransmit message
 	IpcmdCoreTransmit (ctx->core_, ctx->opctx_id_.channel_id_ , ctx->message);
 	//reset timer
-	IpcmdOpCtxSetTimer(ctx, CalculateTimeoutInterval(ctx->nWFABaseTimeout, ctx->nWFAIncreaseTimeout, ctx->numberOfRetries), ctx->OnWFAExpired);
+	IpcmdOpCtxSetTimer(ctx, CalculateTimeoutInterval(ctx->nWFRBaseTimeout, ctx->nWFRIncreaseTimeout, ctx->numberOfRetries), ctx->OnWFRExpired);
 
 	return op_state->state_;
 }
@@ -108,7 +108,7 @@ DECLARE_SM_ENTRY(DoAction_XXX_ANY_RecvError)
 		IpcmdMessageUnref(instant_message);
 	}
 	// 3. deliver to application only if current state is kOpContextStateSetreqSent or kOpContextStateAckRecv.
-	if (op_state->state_ == kOpContextStateSetreqSent || op_state->state_ == kOpContextStateAckRecv) {
+	if (_IsDeliverableState(op_state->state_)) {
 		IpcmdOperationInfoReceivedMessage info;
 		// 3.1 change state to kOpContextStateRespRecv
 		op_state->state_ = kOpContextStateRespRecv;
@@ -255,6 +255,8 @@ DECLARE_SM_ENTRY(DoAction_CLSetreq_Idle_RecvSetreq)
 
 	// 3. change state to kOpContextStateAppProcess
 	op_state->state_ = kOpContextStateAppProcess;
+	// increase reference count of Operation Context until getting kIpcmdTriggerCompletedAppProcess
+	IpcmdOpCtxRef (ctx);
 	// 4. deliver to application
 	{
 		IpcmdOperationInfoReceivedMessage info;
@@ -307,6 +309,9 @@ DECLARE_SM_ENTRY(DoAction_CLSetreq_AppProcess_CompletedAppProcess)
 	IpcmdOpCtx 					*ctx = container_of(op_state, IpcmdOpCtx, mOpState);
 	const IpcmdOperationInfoReplyMessage	*op_info = data;	//we are expecting IpcmdOperationInfoReplyMessage from (gpointer)data
 	IpcmdMessage 				*message;
+
+	// decrease reference count of Operation Context
+	IpcmdOpCtxUnref (ctx);
 
 	switch (op_info->parent_.type_) {
 	case kOperationInfoReplyMessage:
@@ -426,3 +431,6 @@ _GenerateErrorMessage (IpcmdOpCtx *ctx, guint8 ecode, guint16 einfo)
 	return error_message;
 }
 
+static gboolean _IsDeliverableState (enum _OpContextStates state) {
+	return state==kOpContextStateSetreqSent || state==kOpContextStateAckRecv ? TRUE : FALSE;
+}

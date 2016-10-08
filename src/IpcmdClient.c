@@ -14,27 +14,16 @@
 #include "../include/IpcmdCore.h"
 #include "../include/IpcmdOperationContext.h"
 #include "../include/IpcmdHost.h"
+#include "../include/IpcmdClientImpl.h"
 
 #include <glib.h>
 
-struct _IpcmdClient {
-	IpcmdHost		*server_host_;
-	IpcmdChannelId	channel_id_;
-	GHashTable		*operation_contexts_;
-	GList			*subscribed_notifications_;
-	guint16			service_id_;
-	guint8			seq_num_;
-	IpcmdCore		*core_;
-	IpcmdBusEventListener	listener_;
-};
-
-typedef struct _SubscribedNotification SubscribedNotification;
-struct _SubscribedNotification {
+typedef struct _SubscribedNotification {
 	guint16		service_id_;
 	guint16		operation_id_;
 	gboolean	is_cyclic_;
 	IpcmdOperationCallback	cb_;
-};
+} SubscribedNotification;
 
 #define IPCMD_CLIENT_FROM_LISTENER(l) (container_of(l, struct _IpcmdClient, listener_))
 
@@ -42,9 +31,11 @@ static GList* 	_LookupSubscribedNotification (GList *subscription_list, guint16 
 static void		_ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data);
 static void		_OnOpCtxFinalized(IpcmdOpCtxId opctx_id, gpointer cb_data);
 static void		_RemoveOpCtx (gpointer opctx);
-static void		_Init (IpcmdClient *self, IpcmdCore *core, guint16 service_id, IpcmdHost *server_host);
+static void		_Init (IpcmdClient *self, guint16 service_id, IpcmdHost *server_host);
+static void		_OnRegisteredToCore (IpcmdClient *self, IpcmdCore *core);
+static void 	_OnUnregisteredFromCore (IpcmdClient *self, IpcmdCore *core);
 
-#define REPLY_ERROR(core, channel_id, ecode, einfo) do {\
+#define REPLY_ERROR(core, channel_id, mesg, ecode, einfo) do {\
 		IpcmdMessage *error_message = IpcmdMessageNew(IPCMD_ERROR_MESSAGE_SIZE); \
 		IpcmdMessageInitVCCPDUHeader (error_message, IpcmdMessageGetVCCPDUServiceID(mesg), \
 				IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUSenderHandleID(mesg), \
@@ -52,6 +43,15 @@ static void		_Init (IpcmdClient *self, IpcmdCore *core, guint16 service_id, Ipcm
 		IpcmdMessageSetErrorPayload (error_message, ecode, einfo); \
 		IpcmdCoreTransmit (core, channel_id, error_message); \
 		IpcmdMessageUnref(error_message);\
+}while(0)
+
+#define REPLY_ACK(core, channel_id, mesg) do {\
+		IpcmdMessage *ack_message = IpcmdMessageNew(IPCMD_ACK_MESSAGE_SIZE); \
+		IpcmdMessageInitVCCPDUHeader (ack_message, IpcmdMessageGetVCCPDUServiceID(mesg), \
+				IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUSenderHandleID(mesg), \
+				IpcmdMessageGetVCCPDUProtoVersion(mesg), IPCMD_OPTYPE_ACK, IPCMD_PAYLOAD_NOTENCODED, 0); \
+		IpcmdCoreTransmit (core, channel_id, ack_message); \
+		IpcmdMessageUnref(ack_message);\
 }while(0)
 
 guint16
@@ -77,14 +77,14 @@ IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMess
 
 	if (self->channel_id_ != channel_id || IpcmdMessageGetVCCPDUServiceID(mesg) != self->service_id_)	goto _ClientHandleMessage_failed;
 
-	g_debug ("Client get message: CONNID=%d, SHID=0x%.04x, OP_TYPE=0x%x", opctx_id.channel_id_, opctx_id.sender_handle_id_, IpcmdMessageGetVCCPDUOpType(mesg));
+	//g_debug ("Client get message: CONNID=%d, SHID=0x%.04x, OP_TYPE=0x%x", opctx_id.channel_id_, opctx_id.sender_handle_id_, IpcmdMessageGetVCCPDUOpType(mesg));
 
 	/* validation check */
 	// ProtocolVersion
 	if (IpcmdMessageGetVCCPDUProtoVersion(mesg) != IPCMD_PROTOCOL_VERSION) {
 		//send IpcmdError with 0x04 (Invalid protocol version) if op_type is not ACK or ERROR
 		if (IpcmdMessageGetVCCPDUOpType(mesg) != IPCMD_OPTYPE_ACK && IpcmdMessageGetVCCPDUOpType(mesg) != IPCMD_OPTYPE_ERROR) {
-			REPLY_ERROR (self->core_, channel_id, IPCOM_MESSAGE_ECODE_INVALID_PROTOCOL_VERSION, IPCMD_PROTOCOL_VERSION);
+			REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_INVALID_PROTOCOL_VERSION, IPCMD_PROTOCOL_VERSION);
 		}
 		goto _ClientHandleMessage_done;
 	}
@@ -93,7 +93,62 @@ IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMess
 	// OperationType - will be checked at State Machine
 	// Length - will be checked at application
 
-	// Check opctx_id is already registered in hash table
+	/* Handle Notification message */
+	switch (IpcmdMessageGetVCCPDUOpType(mesg)) {
+	case IPCMD_OPTYPE_NOTIFICATION:
+	{
+		GList *sub_list;
+		IpcmdOperationInfoReceivedMessage noti_info;
+		IpcmdOperationInfoReceivedMessageInit (&noti_info);
+
+		g_assert("HERE");
+		// send back ACK message in case that the channel is connection-less
+		if (!IpcmdBusIsChannelConnectionOriented (IpcmdCoreGetBus(self->core_), channel_id)) {
+			REPLY_ACK(self->core_, channel_id, mesg);
+		}
+
+		// lookup subscribers;
+		sub_list = _LookupSubscribedNotification (self->subscribed_notifications_, self->service_id_, IpcmdMessageGetVCCPDUOperationID(mesg), FALSE);
+		if (sub_list) {
+			GList *l;
+			noti_info.raw_message_ = IpcmdMessageRef(mesg);
+			//IMPL: noti_info.sender_ =
+
+			for (l = sub_list; l!=NULL; l=l->next) {
+				((SubscribedNotification*)l->data)->cb_.cb_func(NULL, (IpcmdOperationInfo*)&noti_info,((SubscribedNotification*)l->data)->cb_.cb_data);
+			}
+			IpcmdMessageUnref(mesg);
+		}
+		g_list_free(sub_list);
+		goto _ClientHandleMessage_done;
+	}
+	case IPCMD_OPTYPE_NOTIFICATION_CYCLIC:
+	{
+		GList *sub_list;
+		IpcmdOperationInfoReceivedMessage noti_info;
+
+		IpcmdOperationInfoReceivedMessageInit (&noti_info);
+		sub_list = _LookupSubscribedNotification (self->subscribed_notifications_, self->service_id_, IpcmdMessageGetVCCPDUOperationID(mesg), TRUE);
+		if (sub_list) {
+			GList *l;
+			noti_info.raw_message_ = IpcmdMessageRef(mesg);
+			noti_info.sender_ = NULL;
+			//IMPL: noti_info.sender_ =
+
+			for (l = sub_list; l!=NULL; l=l->next) {
+				((SubscribedNotification*)l->data)->cb_.cb_func(NULL, (IpcmdOperationInfo*)&noti_info,((SubscribedNotification*)l->data)->cb_.cb_data);
+			}
+			IpcmdMessageUnref(mesg);
+		}
+		g_list_free(sub_list);
+		goto _ClientHandleMessage_done;
+	}
+	default:
+		break;
+	}
+
+	/* Handle RESPONSE, ACK and ERROR message */
+	// Check that opctx_id is already registered in hash table
 	opctx = g_hash_table_lookup (self->operation_contexts_, &opctx_id);
 	if (!opctx) {	// Not requested operation. Probably, delayed message came. ignore the message
 		g_debug ("Got delayed message (CONNID=%d, SHID=0x%.04x, OP_TYPE=0x%x)", opctx_id.channel_id_, opctx_id.sender_handle_id_, IpcmdMessageGetVCCPDUOpType(mesg));
@@ -103,37 +158,6 @@ IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMess
 	case IPCMD_OPTYPE_RESPONSE:
 		// trigger RECV_RESPONSE to opctx
 		IpcmdOpCtxTrigger (opctx, kIpcmdTriggerRecvResp, (gpointer)mesg);
-		break;
-	case IPCMD_OPTYPE_NOTIFICATION:
-	case IPCMD_OPTYPE_NOTIFICATION_CYCLIC:
-	{
-#if 0
-		GList *sub_list;
-		IpcmdOperationResultNotification noti_result = {
-				.parent_.result_type_ = OPERATION_RESULT_NOTIFICATION,
-		};
-		IpcmdPayloadData payload;
-
-		// IMPL: if (channel is connection-less) immediately send ACK
-		sub_list = _LookupSubscribedNotification (self->subscribed_notifications_, self->service_id_, IpcmdMessageGetVCCPDUOperationID(mesg), FALSE);
-		if (sub_list) {
-			GList *l;
-			noti_result.notification_.service_id_ = IpcmdMessageGetVCCPDUServiceID(mesg);
-			noti_result.notification_.operation_id_ = IpcmdMessageGetVCCPDUOperationID(mesg);
-			noti_result.notification_.sender_handle_id_ = IpcmdMessageGetVCCPDUSenderHandleID(mesg);
-			noti_result.notification_.op_type_ = IpcmdMessageGetVCCPDUOpType(mesg);
-			noti_result.notification_.payload_data_ = &payload;
-			payload.type_ = IpcmdMessageGetVCCPDUDataType(mesg);
-			payload.length_ = IpcmdMessageGetPaylodLength(mesg);
-			payload.data_ = IpcmdMessageGetPayload(mesg);
-
-			for (l = sub_list; l!=NULL; l=l->next) {
-				((SubscribedNotification*)l->data)->cb_.cb_func(&VoidOpCtxId, &noti_result.parent_,((SubscribedNotification*)l->data)->cb_.cb_data);
-			}
-		}
-		g_list_free(sub_list);
-#endif
-	}
 		break;
 	case IPCMD_OPTYPE_ACK:
 		// trigger kIpcmdTriggerRecvAck to opctx
@@ -212,6 +236,9 @@ IpcmdClientInvokeOperation(IpcmdClient *self, guint16 operation_id, guint8 op_ty
 		info.payload_.length_ = 0;
 		info.payload_.type_ = 0x01;	//no encoding
 	}
+	else {
+		info.payload_ = *payload;
+	}
 
 	switch (op_type) {
 	case IPCMD_OPTYPE_REQUEST:
@@ -246,6 +273,8 @@ IpcmdClientInvokeOperation(IpcmdClient *self, guint16 operation_id, guint8 op_ty
  * subscribe to IpcmdBus to receive notification messages, which are for service_id and operation_id.
  *
  * type should be one of NOTIFICATION or NOTIFICATION_CYCLIC
+ *
+ * @operation_id: 0 means any operations.
  *
  * return -1 on failed
  * return 0 on successfully subscribed
@@ -297,17 +326,16 @@ IpcmdClientNew (IpcmdCore *core, guint16 service_id, IpcmdHost *server_host)
 {
 	IpcmdClient *client = g_malloc(sizeof(struct _IpcmdClient));
 
-	_Init(client, core, service_id, server_host);
+	_Init(client, service_id, server_host);
 	return client;
 }
 
 void
-IpcmdClientFinalize (IpcmdClient *self)
+IpcmdClientDestroy (IpcmdClient *self)
 {
-	IpcmdBusRemoveEventListener (IpcmdCoreGetBus(self->core_), &self->listener_);
 	// IMPL: free self->subscribed_notifications_;
-	// IMPL: free self->operation_contexts_;
 	IpcmdHostUnref (self->server_host_);
+	g_free(self);
 }
 
 static GList*
@@ -322,8 +350,7 @@ _LookupSubscribedNotification (GList *subscription_list, guint16 service_id, gui
 				((SubscribedNotification*)l->data)->is_cyclic_ == is_cyclic ) {
 			ret_list = g_list_append (ret_list, l->data);
 		}
-		else if ( ((SubscribedNotification*)l->data)->service_id_ == 0 &&
-				((SubscribedNotification*)l->data)->operation_id_ == 0) {	// receive all notification messages
+		else if ( ((SubscribedNotification*)l->data)->operation_id_ == 0) {	// receive all notification messages
 			ret_list = g_list_append(ret_list,l->data);
 		}
 	}
@@ -333,32 +360,44 @@ _LookupSubscribedNotification (GList *subscription_list, guint16 service_id, gui
 static void
 _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type, gconstpointer data)
 {
-	//IpcmdClient *client = IPCMD_CLIENT_FROM_LISTENER(self);
+	IpcmdClient *client = IPCMD_CLIENT_FROM_LISTENER(self);
 
-	// IMPL: whole function
-	g_debug("Got channel event: id=%d, type=%d", id, type);
+	switch (type) {
+	case kBusEventChannelAdd:
+		if (client->channel_id_) break;
+		if (IpcmdBusIsChannelIdForPeerHost (IpcmdCoreGetBus (client->core_), id, client->server_host_)) {
+			client->channel_id_ = id;
+			g_debug("[IpcmdClient] Server is reachable.");
+		}
+		break;
+	case kBusEventChannelRemove:
+		if (client->channel_id_ == id) {
+			// IMPL: cancel operations
+			g_debug("[IpcmdClient] Server is unreachable.");
+			client->channel_id_ = 0;
+		}
+		break;
+	case kBusEventChannelStatusChange:
+		// IMPL: not implemented
+		break;
+	default:
+		break;
+	}
 }
 
 static void
-_Init (IpcmdClient *self, IpcmdCore *core, guint16 service_id, IpcmdHost *server_host)
+_Init (IpcmdClient *self, guint16 service_id, IpcmdHost *server_host)
 {
 	g_assert(server_host != NULL);
 
-	self->core_ = core;
 	self->service_id_ = service_id;
 	self->server_host_ = IpcmdHostRef(server_host);
 	self->subscribed_notifications_ = NULL;
 	self->operation_contexts_ = g_hash_table_new_full (IpcmdOpCtxIdHashfunc, IpcmdOpCtxIdEqual, NULL, _RemoveOpCtx);
 	self->seq_num_ = 0;
 	self->listener_.OnChannelEvent = _ReceiveChannelEvent;
-	IpcmdBusAddEventListener (IpcmdCoreGetBus(self->core_),&self->listener_);
-	// Lookup channel_id for server_host
-	{
-		GList *l;
-		l = IpcmdBusFindChannelIdsByPeerHost (IpcmdCoreGetBus(self->core_), self->server_host_);
-		self->channel_id_ = l ? GPOINTER_TO_INT (l->data) : 0;	// set the first channel in the list if it exists
-		g_list_free (l);
-	}
+	self->OnRegisteredToCore = _OnRegisteredToCore;
+	self->OnUnregisteredFromCore = _OnUnregisteredFromCore;
 }
 
 
@@ -379,4 +418,29 @@ _OnOpCtxFinalized(IpcmdOpCtxId opctx_id, gpointer cb_data)
 
 	g_hash_table_remove (client->operation_contexts_, &opctx_id);
 	IpcmdCoreReleaseOpCtx (client->core_, opctx_id);
+}
+
+static void
+_OnRegisteredToCore (IpcmdClient *self, IpcmdCore *core)
+{
+	GList *l;
+
+	self->core_ = core;
+
+	IpcmdBusAddEventListener (IpcmdCoreGetBus(self->core_),&self->listener_);
+
+	// Lookup channel_id for server_host
+	l = IpcmdBusFindChannelIdsByPeerHost (IpcmdCoreGetBus(self->core_), self->server_host_);
+	self->channel_id_ = l ? GPOINTER_TO_INT (l->data) : 0;	// set the first channel in the list if it exists
+	g_list_free (l);
+
+}
+
+static void
+_OnUnregisteredFromCore (IpcmdClient *self, IpcmdCore *core)
+{
+	IpcmdBusRemoveEventListener (IpcmdCoreGetBus(self->core_), &self->listener_);
+	// IMPL: free self->operation_contexts_;
+	self->core_ = NULL;
+	self->channel_id_ = 0;
 }

@@ -1,45 +1,26 @@
-/*
- * ServerTest.c
- *
- *  Created on: Sep 28, 2016
- *      Author: hyotiger
- */
-
 #include "../include/IpcmdClient.h"
 #include "../include/IpcmdOperation.h"
 #include "../include/IpcmdService.h"
-#include "../include/IpcmdServer.h"
 #include "../include/IpcmdHost.h"
 #include "../include/IpcmdDeclare.h"
 #include "../include/IpcmdCore.h"
 #include "../include/IpcmdBus.h"
 #include "../include/IpcmdTransportUdpv4.h"
 #include "../include/IpcmdTransport.h"
+#include "../include/IpcmdServer.h"
 #include "../include/IpcmdMessage.h"
 
 #define TRANSPORT_LOCAL_UDP_ADDRESS	"192.168.0.13"
-#define TRANSPORT_LOCAL_UDP_PORT	50000
+#define TRANSPORT_LOCAL_UDP_PORT	40000
 #define TRANSPORT_REMOTE_UDP_ADDRESS "192.168.0.13"
-#define TRANSPORT_REMOTE_UDP_PORT	40000
+#define TRANSPORT_REMOTE_UDP_PORT	50000
 
-#define CLIENT_REMOTE_SERVICE_ID	0x00A3
+#define CLIENT_REMOTE_SERVICE_ID	0x00A1
 #define CLIENT_REMOTE_SERVICE_HOST_UDP_ADDRESS	"192.168.0.13"
-#define CLIENT_REMOTE_SERVICE_HOST_UDP_PORT		40000
+#define CLIENT_REMOTE_SERVICE_HOST_UDP_PORT		50000
 
-#define SERVER_PROVIDE_SERVICE_ID	0x00A1
+#define SERVER_PROVIDE_SERVICE_ID	0x00A3
 
-/*
-struct _IpcmdOperationPayload {
-	guint8		type_;	//'data_' encoding type: 0 on encoded message, 1 on Normal message
-	guint32		length_;
-	gpointer	data_;
-};
-struct _IpcmdOperationInfoReplyMessage {
-	struct _IpcmdOperationInfo parent_;
-	guint8							op_type_;
-	struct _IpcmdOperationPayload	payload_;
-};
-*/
 static void
 server_service_exec_callback (OpHandle handle, const IpcmdOperationInfo *operation, gpointer cb_data)
 {
@@ -91,7 +72,10 @@ op_callback (OpHandle handle, const IpcmdOperationInfo *result, gpointer cb_data
 	}
 		break;
 	case kOperationInfoReceivedMessage:
-		g_message("Got kOpeartionInfoReceivedMessage.");
+	{
+		const IpcmdOperationInfoReceivedMessage *recv_info = (const IpcmdOperationInfoReceivedMessage*)result;
+		g_message("Got kOpeartionInfoReceivedMessage. op_type = %d", IpcmdMessageGetVCCPDUOpType(recv_info->raw_message_));
+	}
 		break;
 	default:
 		g_error("What is this type? %d", result->type_);
@@ -101,9 +85,19 @@ op_callback (OpHandle handle, const IpcmdOperationInfo *result, gpointer cb_data
 static gboolean
 ApplicationLifetime(gpointer data)
 {
-	GMainLoop *loop = (GMainLoop*)data;
-	g_main_loop_quit(loop);
-	return G_SOURCE_REMOVE;
+	IpcmdClient *client = (IpcmdClient*)data;
+	IpcmdOperationCallback	cbs;
+	static int count = 0;
+
+	/* Invoke Operation */
+	cbs.cb_data = client;
+	cbs.cb_func = op_callback;
+	cbs.cb_destroy = NULL;
+
+	IpcmdClientInvokeOperation(client, 0x0104, count%4, 0x00, NULL, &cbs);
+	count++;
+
+	return TRUE;
 }
 
 int main()
@@ -118,20 +112,25 @@ int main()
 	core = IpcmdCoreNew (g_main_context_default());
 	bus = IpcmdCoreGetBus (core);
 
-	/* Setup UDP server */
+	/* Setup UDP client */
 	transport = IpcmdTransportUdpv4New();
 	IpcmdBusAttachTransport (bus, transport);
 	transport->bind(transport,TRANSPORT_LOCAL_UDP_ADDRESS,TRANSPORT_LOCAL_UDP_PORT);
-	transport->listen(transport,10);
+	transport->connect(transport, TRANSPORT_REMOTE_UDP_ADDRESS, TRANSPORT_REMOTE_UDP_PORT);
 
 	/* Connect to service (0x00A1)*/
 	{
 		IpcmdHost	*server_host;
+		IpcmdOperationCallback	cbs;
 
 		server_host = IpcmdUdpv4HostNew3 (CLIENT_REMOTE_SERVICE_HOST_UDP_ADDRESS, CLIENT_REMOTE_SERVICE_HOST_UDP_PORT);
 		client = IpcmdClientNew (core, CLIENT_REMOTE_SERVICE_ID, server_host);
 		IpcmdHostUnref(server_host);
 		IpcmdCoreRegisterClient(core, client);
+		cbs.cb_func = op_callback;
+		cbs.cb_data = client;
+		cbs.cb_destroy = NULL;
+		IpcmdClientSubscribeNotification(client, 0, FALSE,&cbs);
 	}
 	/* Provide server service (0x00A3) */
 	{
@@ -147,16 +146,7 @@ int main()
 		IpcmdServerRegisterService (IpcmdCoreGetServer (core), server_service);
 	}
 
-#if 0
-	/* Invoke Operation */
-	cbs.cb_data = client;
-	cbs.cb_func = op_callback;
-	cbs.cb_destroy = NULL;
-
-	IpcmdClientInvokeOperation(client, 0x0104, 0x00, 0x00, NULL, &cbs);
-
-	//g_timeout_add(10000, ApplicationLifetime, loop); //exit after 10 seconds
-#endif
+	g_timeout_add(1000, ApplicationLifetime, client); //request every second
 	g_main_loop_run (loop);
 
 	g_message("Exit!");

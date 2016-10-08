@@ -18,11 +18,11 @@ static void	_SetFinalizeState (IpcmdOpCtx *ctx, IpcmdOpCtxFinCode fincode);
 DECLARE_SM_ENTRY(DoAction_CLNoti_Idle_SendNoti)
 {
 	IpcmdOpCtx *ctx = container_of(op_state, IpcmdOpCtx, mOpState);
-	const IpcmdOperationInfoInvokeMessage *op_info = data;
+	const IpcmdOperationInfoReplyMessage *reply_info = data;
 	IpcmdMessage *message;
 
 	// 1. create Notification message
-	message = IpcmdMessageNew(VCCPDUHEADER_SIZE + op_info->payload_.length_);
+	message = IpcmdMessageNew(VCCPDUHEADER_SIZE + reply_info->payload_.length_);
 	if (!message) { //not enough memory
 		g_warning("Not enough memory");
 		return -1;
@@ -30,9 +30,9 @@ DECLARE_SM_ENTRY(DoAction_CLNoti_Idle_SendNoti)
 
 	// 2. fill IpcmdMessage with IpcmdOperationInfo
 	IpcmdMessageInitVCCPDUHeader (message,
-			ctx->serviceId, ctx->operationId, ctx->opctx_id_.sender_handle_id_, ctx->protoVersion, ctx->opType,
-			op_info->payload_.type_, ctx->flags);
-	IpcmdMessageCopyToPayloadBuffer (message, op_info->payload_.data_, op_info->payload_.length_);
+			ctx->serviceId, ctx->operationId, ctx->opctx_id_.sender_handle_id_, ctx->protoVersion, reply_info->op_type_,
+			reply_info->payload_.type_, ctx->flags);
+	IpcmdMessageCopyToPayloadBuffer (message, reply_info->payload_.data_, reply_info->payload_.length_);
 	IpcmdOpCtxSetMessage (ctx, message);
 	IpcmdMessageUnref(message);
 

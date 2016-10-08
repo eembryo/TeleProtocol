@@ -40,11 +40,13 @@ void 		IpcmdBusFinalize(struct _IpcmdBus *self);
 guint16 	IpcmdBusRegisterChannel(IpcmdBus *self, IpcmdChannel *channel);
 void 		IpcmdBusUnregisterChannel(IpcmdBus *self, IpcmdChannel *channel);
 GList*		IpcmdBusFindChannelIdsByPeerHost(IpcmdBus *self, IpcmdHost *remote);
+gboolean	IpcmdBusIsChannelIdForPeerHost(IpcmdBus *self, IpcmdChannelId channel_id, IpcmdHost *remote);
 gboolean 	IpcmdBusAttachTransport(IpcmdBus *self, IpcmdTransport *transport);
 void 		IpcmdBusDetachTransport(IpcmdBus *self, IpcmdTransport *transport);
 gint		IpcmdBusTx(IpcmdBus *self, IpcmdChannelId channel_id, IpcmdMessage *mesg);
 gint		IpcmdBusRx(IpcmdBus *self, IpcmdChannelId channel_id, IpcmdMessage *mesg);
 IpcmdChannel*	IpcmdBusFindChannelById(IpcmdBus *self, IpcmdChannelId id);
+gint		IpcmdBusIsChannelConnectionOriented (IpcmdBus *self, IpcmdChannelId id);
 
 G_END_DECLS
 

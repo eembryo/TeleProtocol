@@ -17,12 +17,10 @@
 #include <string.h>
 #include <math.h>
 
-/*
-static const IpcmdOpCtxId VoidOpCtxId = {
+const IpcmdOpCtxId VoidOpCtxId = {
 		.channel_id_ = 0,
 		.sender_handle_id_ = 0,
 };
-*/
 
 static void _OpCtxFree(struct ref *r);
 static gboolean	DefaultOnWFRTimerExpired(gpointer data);
@@ -157,8 +155,8 @@ IpcmdOpCtxTrigger(IpcmdOpCtx *self, gint trigger, gconstpointer data)
 		return kOpContextStateFinalize;
 
 	IpcmdOpCtxRef (self);
+	//g_debug ("%s: CONNID=%d, SHID=0x%.04x, OP_TYPE=0x%x, state=%d, trigger=%d", __func__, self->opctx_id_.channel_id_, self->opctx_id_.sender_handle_id_, self->opType, old_state, trigger);
 	// lock mOpState
-	// validation check for operation context and message(data)
 	new_state = self->mOpState.pSM->actions[old_state][trigger](&self->mOpState, trigger, data);
 	// unlock mOpState
 	IpcmdOpCtxUnref (self);
@@ -230,7 +228,7 @@ _OpCtxFree(struct ref *r)
 {
 	IpcmdOpCtx *ctx = container_of(r, IpcmdOpCtx, _ref);
 
-	g_debug("Destroy operation context (CONNID=%d, SHID=0x%.04x, OpType=0x%x)", ctx->opctx_id_.channel_id_, ctx->opctx_id_.sender_handle_id_,ctx->opType);
+	//g_debug("Destroy operation context (CONNID=%d, SHID=0x%.04x, OpType=0x%x)", ctx->opctx_id_.channel_id_, ctx->opctx_id_.sender_handle_id_,ctx->opType);
 
 	if (ctx->timer) IpcmdOpCtxCancelTimer(ctx);
 	if (ctx->message) IpcmdMessageUnref(ctx->message);

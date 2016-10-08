@@ -94,33 +94,33 @@ enum IPCMD_MESSAGE_ECODE {
 IpcmdMessage *IpcmdMessageNew(guint16 maxSize);
 static inline gchar*		IpcmdMessageGetRawData(IpcmdMessage *mesg)
 { return mesg->message; }
-static inline VCCPDUHeader *IpcmdMessageGetVCCPDUHeader(IpcmdMessage *mesg)
+static inline VCCPDUHeader *IpcmdMessageGetVCCPDUHeader(const IpcmdMessage *mesg)
 { return mesg->vccpdu_ptr; }
-static inline guint16	IpcmdMessageGetVCCPDUServiceID(IpcmdMessage *mesg)
+static inline guint16	IpcmdMessageGetVCCPDUServiceID(const IpcmdMessage *mesg)
 { return g_ntohs(mesg->vccpdu_ptr->serviceID);}
-static inline guint16 	IpcmdMessageGetVCCPDUOperationID(IpcmdMessage *mesg)
+static inline guint16 	IpcmdMessageGetVCCPDUOperationID(const IpcmdMessage *mesg)
 {return g_ntohs(mesg->vccpdu_ptr->operationID);}
-static inline guint 	IpcmdMessageGetVCCPDULength(IpcmdMessage *mesg)
+static inline guint 	IpcmdMessageGetVCCPDULength(const IpcmdMessage *mesg)
 {	return g_ntohl(mesg->vccpdu_ptr->length);}
 static inline void 		IpcmdMessageSetVCCPDULength(IpcmdMessage *mesg, guint32 length)
 {	mesg->vccpdu_ptr->length = g_htonl(length);}
-static inline guint32 	IpcmdMessageGetVCCPDUSenderHandleID(IpcmdMessage *mesg)
+static inline guint32 	IpcmdMessageGetVCCPDUSenderHandleID(const IpcmdMessage *mesg)
 {	return g_ntohl(mesg->vccpdu_ptr->senderHandleId);}
-static inline guint8 	IpcmdMessageGetVCCPDUProtoVersion(IpcmdMessage *mesg)
+static inline guint8 	IpcmdMessageGetVCCPDUProtoVersion(const IpcmdMessage *mesg)
 {	return mesg->vccpdu_ptr->proto_version;}
-static inline guint8 	IpcmdMessageGetVCCPDUOpType(IpcmdMessage *mesg)
+static inline guint8 	IpcmdMessageGetVCCPDUOpType(const IpcmdMessage *mesg)
 {	return mesg->vccpdu_ptr->opType;}
-static inline guint8 	IpcmdMessageGetVCCPDUDataType(IpcmdMessage *mesg)
+static inline guint8 	IpcmdMessageGetVCCPDUDataType(const IpcmdMessage *mesg)
 {	return mesg->vccpdu_ptr->dataType;}
-static inline guint8 	IpcmdMessageGetVCCPDUReserved(IpcmdMessage *mesg)
+static inline guint8 	IpcmdMessageGetVCCPDUReserved(const IpcmdMessage *mesg)
 {	return mesg->vccpdu_ptr->reserved;}
-static inline guint8 	IpcmdMessageGetVCCPDUFlags(IpcmdMessage *mesg)
+static inline guint8 	IpcmdMessageGetVCCPDUFlags(const IpcmdMessage *mesg)
 {	return mesg->vccpdu_ptr->reserved;}
 static inline void		IpcmdMessageSetLength(IpcmdMessage *mesg, guint length)
 {	mesg->mesg_length = length; }
-static inline guint32	IpcmdMessageGetLength(IpcmdMessage *mesg)
+static inline guint32	IpcmdMessageGetLength(const IpcmdMessage *mesg)
 {	return mesg->mesg_length; }
-static inline guint 	IpcmdMessageGetPaylodLength(IpcmdMessage *mesg)
+static inline guint 	IpcmdMessageGetPaylodLength(const IpcmdMessage *mesg)
 {	return IpcmdMessageGetVCCPDULength(mesg) - 8;}
 static inline void 		IpcmdMessageSetPayloadLength(IpcmdMessage *mesg, guint32 length)
 {	IpcmdMessageSetVCCPDULength(mesg, length+8); IpcmdMessageSetLength(mesg, length + VCCPDUHEADER_SIZE);}
