@@ -33,4 +33,9 @@ target_include_directories(ServerAgentTest PRIVATE ${GLIB_INCLUDE_DIRS})
 target_link_libraries(ServerAgentTest
 	${LIBRARIES}
 	${IPCOMM_LIB})
-	
+
+add_executable(ServerAgentTestBroadcastNoti ./ServerAgentTestBroadcastNoti.c)
+target_include_directories(ServerAgentTestBroadcastNoti PRIVATE ${GLIB_INCLUDE_DIRS})
+target_link_libraries(ServerAgentTestBroadcastNoti
+	${LIBRARIES}
+	${IPCOMM_LIB})

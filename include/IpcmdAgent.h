@@ -39,7 +39,7 @@ void	IpcmdAgentFree(IpcmdAgent *agent);
  * @fn IpcmdAgentTransportAdd
  * @brief Add transport to IP command protocol core
  * @param[in] agent:
- * @param[in] transport_desc: describe a transport to be created
+ * @param[in] transport_desc: transport configuration to be created
  * @return transport id if it successfully added
  * @retval positive integer on success
  * @retval -1 on not enough memory
@@ -49,10 +49,17 @@ void	IpcmdAgentFree(IpcmdAgent *agent);
 gint IpcmdAgentTransportAdd (IpcmdAgent *agent, const TransportDesc *transport_desc);
 gint IpcmdAgentTransportAddUdpv4Server (IpcmdAgent *agent, gchar *local_addr, guint16 local_port, gboolean allow_broadcast);
 gint IpcmdAgentTransportAddUdpv4Client (IpcmdAgent *agent, gchar *local_addr, guint16 local_port, gchar *remote_addr, guint16 remote_port);
+/**
+ * @fn IpcmdAgentTransportRemove
+ * @brief Remove the transport from IP command protocol core
+ * @param[in] agent:
+ * @param[in] transport_id: transport id, which was returned in IpcmdAgentTransportAdd()
+ */
 void IpcmdAgentTransportRemove (IpcmdAgent *agent, gint transport_id);
 
-/* IP COMMAND PROTOCOL CLIENT */
-/**
+/***********************************
+ * IP COMMAND PROTOCOL CLIENT */
+/***********************************
  * @fn IpcmdAgentClientOpenService
  * @brief Create IP command client to access remote service
  * @param[in] agent:
@@ -120,14 +127,16 @@ gint IpcmdAgentClientListenNotiUdpv4 (IpcmdAgent *agent, guint16 service_id, gui
 void IpcmdAgentClientIgnoreNoti (IpcmdAgent *agent, enum IpcmdHostLinkType link_type, guint16 service_id, guint16 op_id, gboolean is_cyclic);
 void IpcmdAgentClientIgnoreNotiUdpv4 (IpcmdAgent *agent, guint16 service_id, guint16 op_id, gboolean is_cyclic);
 
-/* IP COMMAND PROTOCOL SERVER */
+/********************************
+ *  IP COMMAND PROTOCOL SERVER *
+ *******************************/
 /* If ExecOperation() has been called, IpcmdAgentServerCompleteOperation() should be also called
  * after processing the operation.
  *
  * For example, when a server get new operation from client,
  *  1. IP command protocol calls ExecOperation() callback with 'OpHandle' and received message.
  *  2. In ExecOperation(), you may do something and return the function.
- *  3. After some time, server may call IpcmdAgentServerServiceCompleteOperation() with 'OpHandle' and result message.
+ *  3. After some time, server may call IpcmdAgentServerServiceCompleteOperation() with 'OpHandle' and result.
  */
 typedef void (*ExecOperation) (OpHandle handle, const IpcmdOperationInfoReceivedMessage *result, gpointer cb_data);
 typedef void (*DestroyExecData) (gpointer data);
@@ -136,7 +145,7 @@ typedef void (*DestroyExecData) (gpointer data);
  * @brief Create new server service
  * @param[in] agent: IpcmdAgent
  * @param[in] service_id: service id. This should be unique in the agent.
- * @param[in] exec: This callback function will be called when IP command message with 'service_id' is arrived.
+ * @param[in] exec: This callback function will be called when any IP command messages with 'service_id' are arrived.
  */
 gint IpcmdAgentServerOpenService (IpcmdAgent *agent, guint16 service_id, ExecOperation exec, gpointer exec_data, DestroyExecData destroy);
 /**

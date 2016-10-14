@@ -795,6 +795,7 @@ _Udpv4EnableBroadcast(IpcmdTransport *transport)
 	struct _IpcmdTransportUdpv4 *udp_transport = IPCMD_TRANSPORTUDPv4(transport);
 	GInetAddress			*bound_glib_inetaddr;
 	GList					*broadcast_addr_list = NULL;
+	GInetAddress			*broadcast_addr;
 	GList					*iter;
 
 	if (!udp_transport->broadcast_channels_) {	//if no broadcast channels are found
@@ -820,6 +821,20 @@ _Udpv4EnableBroadcast(IpcmdTransport *transport)
 				}
 			}
 			g_list_free(broadcast_addr_list);
+		} else {
+			GInetSocketAddress	*inet_sockaddr;
+			IpcmdChannel	*new_channel;
+
+			broadcast_addr = NetifcMonitorQueryBroadcastAddressWithSrc(NetifcGetInstance(), bound_glib_inetaddr);
+			inet_sockaddr = G_INET_SOCKET_ADDRESS (g_inet_socket_address_new (broadcast_addr, g_inet_socket_address_get_port(udp_transport->bound_sockaddr_)));
+			new_channel = _Udpv4ChannelNew (udp_transport->bound_sockaddr_, inet_sockaddr, udp_transport);
+			g_object_unref (inet_sockaddr);
+			new_channel->status_ = kChannelEstablished;
+			//append the broadcast channel to the list of broadcast channels
+			udp_transport->broadcast_channels_ = g_list_append (udp_transport->broadcast_channels_, new_channel);
+			if (!_Udpv4AddChannel (udp_transport, new_channel)) {
+				g_error ("failed to add channel");
+			}
 		}
 	}
 

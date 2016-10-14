@@ -30,6 +30,20 @@ IpcmdConfigLoadFromFile(gchar *filename)
 static void
 IpcmdConfigInit(IpcmdConfig *config)
 {
+#ifdef USE_PCL_LOCALCONFIG
+#define PCL_LOCALCONFIG_DBID	0x50
+#define PCL_READ_BUF_SIZE	4096
+    gchar readBuf[PCL_READ_BUF_SIZE] = {0};
+    gint ret;
+
+    pclInitLibrary(aAppId, PCL_SHUTDOWN_TYPE_NONE);
+
+    ret = pclKeyReadData(PCL_LOCALCONFIG_DBID, aResourceId, 0, 0, readBuf, PCL_READ_BUF_SIZE);
+
+     pclLifecycleSet(PCL_SHUTDOWN);
+
+    pclDeinitLibrary();
+#else
 	/* REQPROD 346925: Default WFA value
 	 * The default acknowledgment timeout value shall be named, defaultTimeoutWFA.
 	 * This timer shall be set to 500 milliseconds as default value.
@@ -49,4 +63,5 @@ IpcmdConfigInit(IpcmdConfig *config)
 
 	/* REQPROD 347045/MAIN;3 : Minimum concurrent message sequences */
 	config->maximumConcurrentMessages = 10;
+#endif
 }

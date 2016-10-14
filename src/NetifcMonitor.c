@@ -437,7 +437,7 @@ NetifcMonitorQueryBroadcastAddressWithSrc(NetifcMonitor* monitor, const GInetAdd
 	while (g_hash_table_iter_next (&iter, &key, &value)) {
 		pNetifc = (Netifc*)value;
 		pIfcAddr = NetifcLookupAddress(pNetifc, addr);
-		return pIfcAddr->pBroadAddr;
+		if (pIfcAddr) return pIfcAddr->pBroadAddr;
 	}
 
 	return NULL;
