@@ -99,18 +99,19 @@ IpcmdCoreDispatch(IpcmdCore *self, IpcmdChannelId channel_id, IpcmdMessage *mesg
 	case IPCMD_OPTYPE_ACK:
 	case IPCMD_OPTYPE_ERROR:
 	{
-		// if op_type is ACK or ERROR, it may be delivered to IpcmdServer or IpcmdClient
-		// Try IpcmdClients first
-		GList *l;
-		for (l=self->clients_; l!=NULL; l=l->next) {
-			ret = IpcmdClientHandleMessage ((IpcmdClient*)l->data, channel_id, mesg);
-			if (!ret) break;	//it is successfully handled.
-		}
-		if (ret) { // if it cannot handled by IpcmdClients, handle it with IpcmdServer
-			ret = IpcmdServerHandleMessage (&self->server_, channel_id, mesg);
-		}
-		if (ret)
+		IpcmdOpCtxId opctxid = {
+				.channel_id_ = channel_id,
+				.sender_handle_id_ = IpcmdMessageGetVCCPDUSenderHandleID(mesg)
+		};
+		IpcmdOpCtx *opctx;
+		// 1. lookup operation context
+		opctx = g_hash_table_lookup (self->operation_contexts_, (gconstpointer)&opctxid);
+		if (opctx) {
+			// 2. if exists, call msg_handler
+			opctx->owner_->handle (opctx->owner_, channel_id, mesg);
+		} else {
 			g_debug("IpcmdServer or IpcmdClient cannot handle this message(0x%.04x). Ignore it.", IpcmdMessageGetVCCPDUSenderHandleID(mesg));
+		}
 	}
 	break;
 	default:
@@ -157,7 +158,7 @@ IpcmdCoreGetGMainContext(IpcmdCore *self)
  * return allocated IpcmdOpCtx *
  */
 IpcmdOpCtx *
-IpcmdCoreAllocOpCtx(IpcmdCore *self, IpcmdOpCtxId opctx_id)
+IpcmdCoreAllocOpCtx(IpcmdCore *self, IpcmdOpCtxId opctx_id, IpcmdMessageHandlerInterface *owner)
 {
 	IpcmdOpCtx *opctx;
 
@@ -170,6 +171,7 @@ IpcmdCoreAllocOpCtx(IpcmdCore *self, IpcmdOpCtxId opctx_id)
 		return NULL;
 	}
 	opctx->opctx_id_ = opctx_id;
+	opctx->owner_ = owner;
 	g_hash_table_insert (self->operation_contexts_, (gpointer)&opctx->opctx_id_, opctx);
 
 	return IpcmdOpCtxRef (opctx);
@@ -184,7 +186,8 @@ IpcmdCoreReleaseOpCtx(struct _IpcmdCore *self, IpcmdOpCtxId opctx_id)
 gboolean
 IpcmdCoreRegisterClient(IpcmdCore *self, IpcmdClient *client)
 {
-	GList *l;
+	//GList *l;
+	/*
 	IpcmdClient *tmp;
 
 	for (l = self->clients_; l != NULL; l = l->next) {
@@ -193,7 +196,7 @@ IpcmdCoreRegisterClient(IpcmdCore *self, IpcmdClient *client)
 			return FALSE;
 		}
 	}
-
+	 */
 	client->OnRegisteredToCore (client, self);
 	self->clients_ = g_list_append (self->clients_, client);
 

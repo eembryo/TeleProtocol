@@ -789,8 +789,8 @@ _Udpv4OnDetachedFromBus (IpcmdTransport *transport, IpcmdBus *bus)
  * _Udpv4EnableBroadcast:
  * enable the UDP transport and create new broadcast channels to send broadcast packets
  */
-static gboolean
-_Udpv4EnableBroadcast(IpcmdTransport *transport)
+gboolean
+IpcmdUdpv4EnableBroadcast(IpcmdTransport *transport, guint16 dst_port)
 {
 	struct _IpcmdTransportUdpv4 *udp_transport = IPCMD_TRANSPORTUDPv4(transport);
 	GInetAddress			*bound_glib_inetaddr;
@@ -807,7 +807,7 @@ _Udpv4EnableBroadcast(IpcmdTransport *transport)
 			for (iter = g_list_first(broadcast_addr_list); iter != NULL; iter = iter->next) {
 				if (g_inet_address_get_family((GInetAddress*)iter->data) == G_SOCKET_FAMILY_IPV4) {
 					GInetSocketAddress	*inet_sockaddr =
-							G_INET_SOCKET_ADDRESS (g_inet_socket_address_new ((GInetAddress*)iter->data, g_inet_socket_address_get_port(udp_transport->bound_sockaddr_)));
+							G_INET_SOCKET_ADDRESS (g_inet_socket_address_new ((GInetAddress*)iter->data, dst_port));
 					IpcmdChannel		*new_channel = _Udpv4ChannelNew (udp_transport->bound_sockaddr_, inet_sockaddr, udp_transport);
 					g_assert(new_channel);	//IMPL: handle no memory
 					g_object_unref (inet_sockaddr);
@@ -826,7 +826,7 @@ _Udpv4EnableBroadcast(IpcmdTransport *transport)
 			IpcmdChannel	*new_channel;
 
 			broadcast_addr = NetifcMonitorQueryBroadcastAddressWithSrc(NetifcGetInstance(), bound_glib_inetaddr);
-			inet_sockaddr = G_INET_SOCKET_ADDRESS (g_inet_socket_address_new (broadcast_addr, g_inet_socket_address_get_port(udp_transport->bound_sockaddr_)));
+			inet_sockaddr = G_INET_SOCKET_ADDRESS (g_inet_socket_address_new (broadcast_addr, dst_port));
 			new_channel = _Udpv4ChannelNew (udp_transport->bound_sockaddr_, inet_sockaddr, udp_transport);
 			g_object_unref (inet_sockaddr);
 			new_channel->status_ = kChannelEstablished;
@@ -856,8 +856,8 @@ _Udpv4EnableBroadcast(IpcmdTransport *transport)
  * _Udpv4DisableBroadcast:
  * disable broadcasting and remove a broadcast channel.
  */
-static void
-_Udpv4DisableBroadcast(IpcmdTransport *transport)
+void
+IpcmdUdpv4DisableBroadcast(IpcmdTransport *transport)
 {
 	struct _IpcmdTransportUdpv4 *udp_transport = IPCMD_TRANSPORTUDPv4(transport);
 	GList	*iter;
@@ -865,7 +865,9 @@ _Udpv4DisableBroadcast(IpcmdTransport *transport)
 	// unregister broadcast channel from bus
 	for (iter = udp_transport->broadcast_channels_; iter!=NULL; iter=iter->next) {
 		IpcmdBusUnregisterChannel (IPCMD_TRANSPORT(udp_transport)->bus_, (IpcmdChannel *)iter->data);
+		_Udpv4ChannelFree ((IpcmdChannel *)iter->data);
 	}
+	g_list_free (udp_transport->broadcast_channels_);
 
 	g_socket_set_broadcast (udp_transport->socket_, FALSE);
 }
@@ -877,9 +879,9 @@ static IpcmdTransport udpv4 = {
 		.transmit 			= _Udpv4Transmit,
 		.bind 				= _Udpv4Bind,
 		.connect 			= _Udpv4Connect,
-		.listen 			= _Udpv4Listen,
-		.EnableBroadcast 	= _Udpv4EnableBroadcast,
-		.DisableBroadcast 	= _Udpv4DisableBroadcast,
+		.listen 			= _Udpv4Listen
+//		.EnableBroadcast 	= _Udpv4EnableBroadcast,
+//		.DisableBroadcast 	= _Udpv4DisableBroadcast,
 };
 
 IpcmdTransport *

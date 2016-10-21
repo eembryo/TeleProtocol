@@ -22,7 +22,7 @@ enum IpcmdTransportType {
 //typedef gboolean			(*_IpcomTransportCloseChannel)		(IpcmdTransport*,const IpcmdChannelId channel_id);
 
 struct _IpcmdTransport {
-	IpcmdBus					*bus_;	// will be set when attaching to IpcmdBus
+	IpcmdBus					*bus_;	// DONOT SET this variable. This will be set when attaching to IpcmdBus.
 	void						(*OnAttachedToBus)(IpcmdTransport *transport, IpcmdBus *bus);
 	void						(*OnDetachedFromBus)(IpcmdTransport *transport, IpcmdBus *bus);
 
@@ -33,8 +33,8 @@ struct _IpcmdTransport {
 	gint						(*connect)(IpcmdTransport *transport,const gchar *ip,const guint16 port);
 	gboolean					(*listen)(IpcmdTransport *transport, const gint backlog);
 	gint						(*transmit)(IpcmdTransport *transport, const IpcmdChannel *channel, IpcmdMessage *message);
-	gboolean					(*EnableBroadcast)(IpcmdTransport *transport);
-	void						(*DisableBroadcast)(IpcmdTransport *transport);
+//	gboolean					(*EnableBroadcast)(IpcmdTransport *transport);
+//	void						(*DisableBroadcast)(IpcmdTransport *transport);
 };
 
 G_END_DECLS

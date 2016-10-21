@@ -11,6 +11,8 @@
 #include "../include/IpcmdDeclare.h"
 #include "../include/IpcmdOpStateMachine.h"
 
+G_BEGIN_DECLS
+
 #define DECLARE_SM_ENTRY(fn_name) \
 	static gint fn_name(IpcmdOpState *op_state, enum _IpcmdOpCtxTriggers trigger, gconstpointer data)
 
@@ -32,5 +34,7 @@ extern gint DoAction_NotDetermined(IpcmdOpState *op_state, enum _IpcmdOpCtxTrigg
  *
  *******************************************/
 extern gint DoAction_Ignore(IpcmdOpState *op_state, enum _IpcmdOpCtxTriggers trigger, gconstpointer data);
+
+G_END_DECLS
 
 #endif /* INCLUDE_IPCMDOPSTATEMACHINECOMMON_H_ */

@@ -1,0 +1,30 @@
+libipcmd implemented VCC IP Command Protocol which is defining a control channel for
+IP based networks. The protocol is designed for in-vehicle communication, between 
+IP-based ECUs.
+
+
+* Design Concepts
+
+--------------------------------                --------------------------------          
+|          Application#1       |                |          Application#2       |
+--------------------------------                --------------------------------
+         |              |                              |                |
+-------------------     |                       ------------------      |
+| (IPCMD Service) | ----------------            | (IPCMD Service)| ----------------
+| (IPCMD Server)  | |(IPCMD Client)|            | (IPCMD Server) | |(IPCMD Client)|
+------------------- ----------------            ------------------ ----------------
+         |              |                              |                |
+         |(CHID#2)      |(CHID#2)                      |(CHID#2)        |(CHID#2)
+         |              |                              |                |
+-------------------------------------------------------------------------------------
+         |              |                              |                |
+         ---------------      IP COMMAND BUS           -----------------
+               |                                            |
+-------------------------------------------------------------------------------------
+               ^                                            ^
+               |                                            |
+               |           (Transport for Channel#2)        |
+               ----------------------------------------------
+           (UDP/TCP Client)                              (UDP/TCP Server)
+                                     or
+           (UDP/TCP Server)                              (UDP/TCP Client)

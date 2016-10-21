@@ -10,6 +10,8 @@
 
 #include <glib.h>
 
+G_BEGIN_DECLS
+
 typedef struct _IpcmdConfig {
 	gint	defaultTimeoutWFA;		//milliseconds
 	gfloat	increaseTimerValueWFA;
@@ -22,5 +24,7 @@ typedef struct _IpcmdConfig {
 
 IpcmdConfig	*IpcmdConfigGetInstance();
 void		IpcmdConfigLoadFromFile(gchar *filename);
+
+G_END_DECLS
 
 #endif /* INCLUDE_IPCMDCONFIG_H_ */

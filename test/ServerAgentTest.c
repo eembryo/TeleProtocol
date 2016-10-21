@@ -19,24 +19,18 @@
 #define SUBSCRIBER_UDP_ADDRESS "192.168.0.13"
 #define SUBSCRIBER_UDP_PORT 40000
 
+#define CLIENT_REMOTE_SERVICE_UDP_ADDRESS	"192.168.0.13"
+#define CLIENT_REMOTE_SERVICE_UDP_PORT		40000
 #define CLIENT_REMOTE_SERVICE_ID 0x00A7
 #define CLIENT_REMOTE_OPERATION_ID 0x0702
 #define CLIENT_REMOTE_OPERATION_TYPE 0x02	//SetRequest
-#define CLIENT_REMOTE_SERVICE_UDP_ADDRESS	"192.168.0.13"
-#define CLIENT_REMOTE_SERVICE_UDP_PORT		40000
-/*
-TransportDescUdpv4 udp_desc = {
-		.link_type_ = IPCMD_HOSTLINK_UDPv4,
-		.is_server_ = TRUE,
-		.local_addr_ = TRANSPORT_LOCAL_ADDRESS,
-		.local_port_ = TRANSPORT_LOCAL_PORT,
-		.allow_broadcast_ = FALSE,
-};
-*/
+
+IpcmdAgent *agent;
+
 static void
 client_service_operation_callback (OpHandle handle, const IpcmdOperationInfo *info, gpointer cb_data)
 {
-	IpcmdAgent *agent = (IpcmdAgent*)cb_data;
+	//IpcmdAgent *agent = (IpcmdAgent*)cb_data;
 
 	//info is one of following types
 	switch (info->type_) {
@@ -129,6 +123,7 @@ SendNotification(gpointer data)
 	reply_info.payload_.length_ = 10;
 	reply_info.payload_.type_ = IPCMD_PAYLOAD_NOTENCODED;
 
+	// The notification message will be generated and sent to each subscribers by IP command protocol.
 	IpcmdAgentServerInformNoti (agent, SERVER_SERVICE_ID, SERVER_NOTIFICATION_OPERATION_ID, &reply_info);
 
 	return G_SOURCE_CONTINUE;
@@ -137,7 +132,8 @@ SendNotification(gpointer data)
 static gboolean
 RequestOperation(gpointer data)
 {
-	IpcmdAgent *agent = (IpcmdAgent*)data;
+	gint client_id = GPOINTER_TO_INT(data);
+
 	IpcmdOperationCallback	op_cb = {
 			.cb_func = client_service_operation_callback,
 			.cb_destroy = NULL,
@@ -149,34 +145,48 @@ RequestOperation(gpointer data)
 			.length_ = 10,
 			.type_ = IPCMD_PAYLOAD_NOTENCODED,
 	};
-	IpcmdAgentClientInvokeOperationUdpv4 (agent, CLIENT_REMOTE_SERVICE_ID, CLIENT_REMOTE_OPERATION_ID, CLIENT_REMOTE_OPERATION_TYPE, 0x0, &payload, &op_cb);
+	IpcmdAgentClientInvokeOperation (agent, client_id, CLIENT_REMOTE_SERVICE_ID, CLIENT_REMOTE_OPERATION_ID, CLIENT_REMOTE_OPERATION_TYPE, 0x0, &payload, &op_cb);
 
 	return G_SOURCE_CONTINUE;
 }
+
 gint main()
 {
-	IpcmdAgent *agent;
 	GMainLoop	*loop = g_main_loop_new (g_main_context_default(), FALSE);
+	gint	client_id;
 
 	agent = IpcmdAgentNew (g_main_context_default());
 
+	// Setup Transport Layer
 	IpcmdAgentTransportAddUdpv4Server (agent, TRANSPORT_LOCAL_ADDRESS, TRANSPORT_LOCAL_PORT, FALSE);
 
+	// Create new service to process operations, requested by remote clients
 	IpcmdAgentServerOpenService (agent, SERVER_SERVICE_ID, server_service_exec_callback, agent, NULL);
+	// You may create multiple services to serve.
+	// IpcmdAgentServerOpenService (agent, SERVER_SERVICE_ID2, server_service_exec_callback2, agent, NULL);
+	// IpcmdAgentServerOpenService (agent, SERVER_SERVICE_ID3, server_service_exec_callback3, agent, NULL);
+	// ...
+
+	// Add a specific client to notification group.
+	// You may invoke multiple times to add clients to the notification group.
 	IpcmdAgentServerAddNotiSubscriberUdpv4 (agent,
 			SERVER_SERVICE_ID,	//service id
 			SERVER_NOTIFICATION_OPERATION_ID, //operation id
 			FALSE,	//NOTIFICATION_CYCLIC ?
 			SUBSCRIBER_UDP_ADDRESS,			//address of subscriber
-			SUBSCRIBER_UDP_PORT,					//port of subscriber
+			SUBSCRIBER_UDP_PORT,			//port of subscriber
 			TRUE	//is the subscriber static ?
 			);
+	g_timeout_add(10*1000, SendNotification, agent); //send notification to clients every 10 seconds
 
-	g_timeout_add(10000, SendNotification, agent); //send notification to clients every 10 seconds
-
-	IpcmdAgentClientOpenServiceUdpv4 (agent, CLIENT_REMOTE_SERVICE_ID, CLIENT_REMOTE_SERVICE_UDP_ADDRESS, CLIENT_REMOTE_SERVICE_UDP_PORT);
-
-	g_timeout_add(5000, RequestOperation, agent);	//send REQUEST message to server every 5 seconds
+	// Create new client to request operations
+	client_id = IpcmdAgentClientOpenUdpv4 (agent, CLIENT_REMOTE_SERVICE_UDP_ADDRESS, CLIENT_REMOTE_SERVICE_UDP_PORT);
+	// You may create multiple clients to access multiple remote services.
+	// NOTE: Each service ID should be different, while udp address and port may be same.
+	// IpcmdAgentClientOpenServiceUdpv4 (agent, CLIENT_REMOTE_SERVICE_ID2, CLIENT_REMOTE_SERVICE_UDP_ADDRESS2, CLIENT_REMOTE_SERVICE_UDP_PORT2);
+	// IpcmdAgentClientOpenServiceUdpv4 (agent, CLIENT_REMOTE_SERVICE_ID3, CLIENT_REMOTE_SERVICE_UDP_ADDRESS3, CLIENT_REMOTE_SERVICE_UDP_PORT3);
+	// ...
+	g_timeout_add(5*1000, RequestOperation, GINT_TO_POINTER(client_id));	//send REQUEST message to server every 5 seconds
 
 	g_main_loop_run (loop);
 }

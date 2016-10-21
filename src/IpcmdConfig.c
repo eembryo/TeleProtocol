@@ -32,7 +32,7 @@ IpcmdConfigInit(IpcmdConfig *config)
 {
 #ifdef USE_PCL_LOCALCONFIG
 #define PCL_LOCALCONFIG_DBID	0x50
-#define PCL_READ_BUF_SIZE	4096
+#define PCL_READ_BUF_SIZE		4096
     gchar readBuf[PCL_READ_BUF_SIZE] = {0};
     gint ret;
 
@@ -43,7 +43,7 @@ IpcmdConfigInit(IpcmdConfig *config)
      pclLifecycleSet(PCL_SHUTDOWN);
 
     pclDeinitLibrary();
-#else
+#else	//!USE_PCL_LOCALCONFIG
 	/* REQPROD 346925: Default WFA value
 	 * The default acknowledgment timeout value shall be named, defaultTimeoutWFA.
 	 * This timer shall be set to 500 milliseconds as default value.

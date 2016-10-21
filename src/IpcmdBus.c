@@ -246,7 +246,6 @@ IpcmdBusAddEventListener(IpcmdBus *self, IpcmdBusEventListener *listener)
 {
 	GList *l = g_list_find (self->event_listeners_, listener);
 	if (l) {
-		g_list_free (l);
 		return FALSE;
 	}
 

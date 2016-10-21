@@ -58,7 +58,8 @@ struct _IpcmdMessage {
 	struct _VCCPDUHeader	*vccpdu_ptr;	//vccpduheader pointer in 'raw message'
 	gpointer				payload_ptr;	//payload pointer in 'raw message'
 	guint32					actual_size;	//the amount of allocated memory for 'raw message' It does not include the size of 'struct _IpcmdMessage'
-    GSocketAddress*         origin_addr;    //originator of this message
+    GSocketAddress*         origin_addr;    //originator of this message. will be deprecated
+    IpcmdHost				*origin_host;		//originator of this message
 	guint32					mesg_length;	//size of 'raw message'
 	gchar					message[0];		//the start of 'raw message'
 };

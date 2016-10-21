@@ -132,7 +132,7 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 				REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_BUSY, 0);
 				goto _HandleMessage_done;
 			}
-			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id, &self->msg_handler_);
 			if (!opctx) { // failed to allocate opctx
 				g_warning("failed to allocate operation context:");
 				goto _HandleMessage_done;
@@ -155,7 +155,7 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 				REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_BUSY, 0);
 				goto _HandleMessage_done;
 			}
-			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id, &self->msg_handler_);
 			if (!opctx) { // failed to allocate opctx
 				g_warning("failed to allocate operation context:");
 				goto _HandleMessage_done;
@@ -178,7 +178,7 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 				REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_BUSY, 0);
 				goto _HandleMessage_done;
 			}
-			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id, &self->msg_handler_);
 			if (!opctx) { // failed to allocate opctx
 				g_warning("failed to allocate operation context:");
 				goto _HandleMessage_done;
@@ -201,7 +201,7 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 				REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_BUSY, 0);
 				goto _HandleMessage_done;
 			}
-			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id);
+			opctx = IpcmdCoreAllocOpCtx (self->core_, opctx_id, &self->msg_handler_);
 			if (!opctx) { // failed to allocate opctx
 				g_warning("failed to allocate operation context:");
 				goto _HandleMessage_done;
@@ -295,9 +295,18 @@ IpcmdServerLookupService (IpcmdServer *self, guint16 service_id)
 	}
 	return NULL;
 }
+
+static inline gint
+_MessageHandler(IpcmdMessageHandlerInterface *self, IpcmdChannelId channel_id, IpcmdMessage *mesg)
+{
+	IpcmdServer *server = container_of(self, struct _IpcmdServer, msg_handler_);
+	return IpcmdServerHandleMessage (server, channel_id, mesg);
+}
+
 void
 IpcmdServerInit(IpcmdServer *self, IpcmdCore *core)
 {
+	self->msg_handler_.handle = _MessageHandler;
 	self->services_ = NULL;
 	self->core_ = core;
 	self->listener_.OnChannelEvent = _ReceiveChannelEvent;
@@ -355,7 +364,7 @@ IpcmdServerSendNotification(IpcmdServer *self, guint16 service_id, guint16 opera
 		num = *seq_num;
 		do {
 			opctx_id.sender_handle_id_ = BUILD_SENDERHANDLEID(service_id, operation_id, reply_info->op_type_, num);
-			ctx = IpcmdCoreAllocOpCtx(self->core_, opctx_id);
+			ctx = IpcmdCoreAllocOpCtx(self->core_, opctx_id, &self->msg_handler_);
 			if (ctx) break;
 			num++;
 		} while(num!=*seq_num);

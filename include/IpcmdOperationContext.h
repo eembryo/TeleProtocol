@@ -12,6 +12,7 @@
 //#include "IpcmdOperation.h"
 #include "reference.h"
 #include "IpcmdOpStateMachine.h"
+#include "IpcmdMessageHandler.h"
 #include <glib.h>
 
 G_BEGIN_DECLS
@@ -45,6 +46,7 @@ const IpcmdOpCtxId VoidOpCtxId;
 struct _IpcmdOperationContext {
 	struct _IpcmdOperationContextId		opctx_id_;	// unique id for each operation context
 
+	IpcmdMessageHandlerInterface		*owner_;		// owner's(IpcmdServer or IpcmdClient) message handler of the operation context
 	IpcmdCore							*core_;
 	/// operation information
 	guint16								serviceId;

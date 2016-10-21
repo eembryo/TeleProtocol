@@ -11,7 +11,10 @@
 #include "../include/IpcmdDeclare.h"
 #include "../include/IpcmdOperation.h"
 #include "../include/IpcmdHost.h"
+#include "../include/IpcmdMessage.h"
 #include <glib.h>
+
+G_BEGIN_DECLS
 
 typedef struct _IpcmdAgent IpcmdAgent;
 
@@ -26,6 +29,7 @@ typedef struct _TransportDescUdpv4 {
 	guint16						local_port_;
 
 	gboolean					allow_broadcast_;	//used in case of kIpcmdAgentLinkUdpv4
+	guint16						broadcast_port_;	//port number for broadcasting. if 0, local_port_ is used instead.
 
 	gchar						*remote_addr_;		//used in case of ClientTransport
 	guint16						remote_port_;		//used in case of ClientTransport
@@ -60,25 +64,24 @@ void IpcmdAgentTransportRemove (IpcmdAgent *agent, gint transport_id);
 /***********************************
  * IP COMMAND PROTOCOL CLIENT */
 /***********************************
- * @fn IpcmdAgentClientOpenService
- * @brief Create IP command client to access remote service
+ * @fn IpcmdAgentClientOpen
+ * @brief connect to remote IP command server
  * @param[in] agent:
- * @param[in] service_id: remote service id
  * @param[in] remote_host: a remote host
- * @return
+ * @return client id
  * @retval 0 on successfully connected
  * @retval -1 on not enough memory
  * @retval -2 on already connected 'service_id'
  */
-gint IpcmdAgentClientOpenService (IpcmdAgent *agent, guint16 service_id, const IpcmdHost *remote_host);
-gint IpcmdAgentClientOpenServiceUdpv4 (IpcmdAgent *agent, guint16 service_id, gchar *remote_addr, guint16 remote_port);
+gint IpcmdAgentClientOpen (IpcmdAgent *agent, const IpcmdHost *remote_host);
+gint IpcmdAgentClientOpenUdpv4 (IpcmdAgent *agent, gchar *remote_addr, guint16 remote_port);
 
 /**
  * @fn IpcmdAgentClientCloseService
  * @brief close connected remote service
  */
-void IpcmdAgentClientCloseService (IpcmdAgent *agent, enum IpcmdHostLinkType link_type, guint16 service_id);
-void IpcmdAgentClientCloseServiceUdpv4 (IpcmdAgent *agent, guint16 service_id);
+void IpcmdAgentClientClose (IpcmdAgent *agent, guint16 client_id);
+//void IpcmdAgentClientCloseUdpv4 (IpcmdAgent *agent, gchar *remote_addr, guint16 remote_port);
 
 /**
  * @fn IpcmdAgentClientInvokeOperation
@@ -92,10 +95,7 @@ void IpcmdAgentClientCloseServiceUdpv4 (IpcmdAgent *agent, guint16 service_id);
  * @param[in] cb:
  * @return unique handle for the operation
  */
-OpHandle IpcmdAgentClientInvokeOperation (IpcmdAgent *agent, enum IpcmdHostLinkType link_type, guint16 service_id, guint16 op_id, guint8 op_type, guint8 flags,
-		const IpcmdOperationPayload *payload,
-		const IpcmdOperationCallback *cb);
-OpHandle IpcmdAgentClientInvokeOperationUdpv4 (IpcmdAgent *agent, guint16 service_id, guint16 op_id, guint8 op_type, guint8 flags,
+OpHandle IpcmdAgentClientInvokeOperation (IpcmdAgent *agent, guint16 client_id, guint16 service_id, guint16 op_id, guint8 op_type, guint8 flags,
 		const IpcmdOperationPayload *payload,
 		const IpcmdOperationCallback *cb);
 
@@ -113,8 +113,8 @@ OpHandle IpcmdAgentClientInvokeOperationUdpv4 (IpcmdAgent *agent, guint16 servic
  * @retval -1 on wrong 'service_id'
  * @retval -2 when 'op_id' is already used
  */
-gint IpcmdAgentClientListenNoti (IpcmdAgent *agent, enum IpcmdHostLinkType link_type, guint16 service_id, guint16 op_id, gboolean is_cyclic, const IpcmdOperationCallback *cb);
-gint IpcmdAgentClientListenNotiUdpv4 (IpcmdAgent *agent, guint16 service_id, guint16 op_id, gboolean is_cyclic, const IpcmdOperationCallback *cb);
+gint IpcmdAgentClientListenNoti (IpcmdAgent *agent, guint16 client_id, guint16 service_id, guint16 op_id, gboolean is_cyclic, const IpcmdOperationCallback *cb);
+//gint IpcmdAgentClientListenNotiUdpv4 (IpcmdAgent *agent, guint16 service_id, guint16 op_id, gboolean is_cyclic, const IpcmdOperationCallback *cb);
 /**
  * @fn IpcmdAgentClientIgnoreNoti
  * @brief Stop listening notification
@@ -124,8 +124,8 @@ gint IpcmdAgentClientListenNotiUdpv4 (IpcmdAgent *agent, guint16 service_id, gui
  * @param[in] op_id:
  * @param[in] is_cyclic:
  */
-void IpcmdAgentClientIgnoreNoti (IpcmdAgent *agent, enum IpcmdHostLinkType link_type, guint16 service_id, guint16 op_id, gboolean is_cyclic);
-void IpcmdAgentClientIgnoreNotiUdpv4 (IpcmdAgent *agent, guint16 service_id, guint16 op_id, gboolean is_cyclic);
+void IpcmdAgentClientIgnoreNoti (IpcmdAgent *agent, guint16 client_id, guint16 service_id, guint16 op_id, gboolean is_cyclic);
+//void IpcmdAgentClientIgnoreNotiUdpv4 (IpcmdAgent *agent, guint16 service_id, guint16 op_id, gboolean is_cyclic);
 
 /********************************
  *  IP COMMAND PROTOCOL SERVER *
@@ -213,5 +213,7 @@ void IpcmdAgentServerRemoveNotiSubscriber (IpcmdAgent *agent, guint16 service_id
 		const IpcmdHost *subscriber);
 void IpcmdAgentServerRemoveNotiSubscriberUdpv4 (IpcmdAgent *agent, guint16 service_id, guint16 op_id, gboolean is_cyclic,
 		const gchar *subscriber_addr, guint16 subscriber_port);
+
+G_END_DECLS
 
 #endif /* INCLUDE_IPCMDAGENT_H_ */

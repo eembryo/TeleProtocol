@@ -23,7 +23,7 @@ _IpcmdMessageFree(struct ref *r)
 	}
 
 	if (pMsg->origin_addr) g_object_unref(pMsg->origin_addr);
-
+	if (pMsg->origin_host) IpcmdHostUnref(pMsg->origin_host);
 	g_free(pMsg);
 }
 
@@ -33,6 +33,7 @@ IpcmdMessageInit(IpcmdMessage *mesg) {
 	mesg->payload_ptr = (gpointer)mesg->vccpdu_ptr + sizeof(struct _VCCPDUHeader);
 	mesg->mesg_length = VCCPDUHEADER_SIZE;
 	mesg->origin_addr = NULL;
+	mesg->origin_host = NULL;
 	ref_init(&mesg->_ref, _IpcmdMessageFree);
 
 	return TRUE;

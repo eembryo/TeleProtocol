@@ -18,32 +18,12 @@
 #include "../include/IpcmdOperationContext.h"
 
 typedef struct _IpcmdAgent {
-	GHashTable	*clients_;			//key: service_id and link_type, value: IpcmdClient*
+	GHashTable	*clients_;			//key: client_id, value: IpcmdClient*
 	GHashTable	*server_services_;	//key: service id, value: IpcmdService*
 	IpcmdCore	*core_;
 	GHashTable 	*transports_;
 	guint16		last_used_transport_id_;
 } IpcmdAgent;
-
-struct _IpcmdAgentClientHashkey {
-	enum IpcmdHostLinkType link_type;
-	guint16 service_id;
-};
-
-static guint _ClientHashfunc (gconstpointer key)
-{
-	struct _IpcmdAgentClientHashkey *client_key = (struct _IpcmdAgentClientHashkey*)key;
-
-	return client_key->service_id + ((client_key->link_type & 0xFF)<<16);
-}
-
-static gboolean _ClientHahskkeyEqual (gconstpointer a, gconstpointer b)
-{
-	struct _IpcmdAgentClientHashkey *key_a = (struct _IpcmdAgentClientHashkey*)a;
-	struct _IpcmdAgentClientHashkey *key_b = (struct _IpcmdAgentClientHashkey*)b;
-
-	return key_a->link_type == key_b->link_type && key_a->service_id == key_b->service_id ? TRUE : FALSE;
-}
 
 IpcmdAgent *
 IpcmdAgentNew(GMainContext *main_context)
@@ -53,7 +33,7 @@ IpcmdAgentNew(GMainContext *main_context)
 	agent->core_ = IpcmdCoreNew (main_context);
 	agent->last_used_transport_id_ = 0;
 	agent->transports_ = g_hash_table_new (g_direct_hash, g_direct_equal);
-	agent->clients_ = g_hash_table_new_full (_ClientHashfunc, _ClientHahskkeyEqual, g_free, NULL);
+	agent->clients_ = g_hash_table_new (g_direct_hash, g_direct_equal);
 	agent->server_services_ = g_hash_table_new (g_direct_hash, g_direct_equal);
 
 	return agent;
@@ -102,7 +82,7 @@ IpcmdAgentTransportAdd (IpcmdAgent *agent, const TransportDesc *transport_desc)
 
 		if (desc_udpv4->is_server_) {
 			transport->listen(transport,10);
-			if (desc_udpv4->allow_broadcast_) transport->EnableBroadcast(transport);
+			if (desc_udpv4->allow_broadcast_) IpcmdUdpv4EnableBroadcast (transport, desc_udpv4->broadcast_port_ ? desc_udpv4->broadcast_port_ : desc_udpv4->local_port_);
 		}
 		else {
 			transport->connect(transport, desc_udpv4->remote_addr_, desc_udpv4->remote_port_);
@@ -188,130 +168,96 @@ IpcmdAgentTransportRemove(IpcmdAgent *agent, gint transport_id)
 
 /* @fn: IpcmdAgentClientConnectToService
  *
- * return:	0 on success
- * 			-1 on not enough memory
- * 			-2 on already connected with service_id and link_type
+ * @return: client id for the remote host. return negative integer on error.
+ * @retval positive integer on success
+ * @retval -1 on not enough memory
+ * @retval -2 on too many clients
  */
 gint
-IpcmdAgentClientOpenService (IpcmdAgent *agent, guint16 service_id, const IpcmdHost *remote_host)
+IpcmdAgentClientOpen (IpcmdAgent *agent, const IpcmdHost *remote_host)
 {
-	struct _IpcmdAgentClientHashkey *client_hashkey;
 	IpcmdClient	*client;
+	guint16	i;
 
-	client_hashkey = g_malloc(sizeof(struct _IpcmdAgentClientHashkey));
-	if (!client_hashkey) return -1;
-	client_hashkey->link_type = IpcmdHostType (remote_host);
-	client_hashkey->service_id = service_id;
-	if (g_hash_table_contains (agent->clients_, client_hashkey)) {
-		g_free(client_hashkey);
+	client = IpcmdClientNew (agent->core_, remote_host->duplicate(remote_host));
+
+	for (i=1; i!=0; i++) {
+		if (g_hash_table_contains(agent->clients_, GINT_TO_POINTER(i))) continue;
+		g_hash_table_insert (agent->clients_, GINT_TO_POINTER(i), client);
+		break;
+	}
+
+	if (i==0) {
+		IpcmdClientDestroy (client);
 		return -2;
 	}
 
-	client = IpcmdClientNew (agent->core_, service_id, remote_host->duplicate(remote_host));
 	IpcmdCoreRegisterClient(agent->core_, client);
-
-	g_hash_table_insert (agent->clients_, client_hashkey, client);
-
-	return 0;
+	return i;
 }
 
 gint
-IpcmdAgentClientOpenServiceUdpv4 (IpcmdAgent *agent, guint16 service_id, gchar *remote_addr, guint16 remote_port)
+IpcmdAgentClientOpenUdpv4 (IpcmdAgent *agent, gchar *remote_addr, guint16 remote_port)
 {
 	IpcmdHost	*remote_host;
 	gint		ret;
 
 	remote_host = IpcmdUdpv4HostNew3 (remote_addr, remote_port);
-	ret = IpcmdAgentClientOpenService (agent, service_id, remote_host);
+	ret = IpcmdAgentClientOpen (agent, remote_host);
 	IpcmdHostUnref(remote_host);
 
 	return ret;
 }
 
 void
-IpcmdAgentClientCloseService (IpcmdAgent *agent, enum IpcmdHostLinkType link_type, guint16 service_id)
+IpcmdAgentClientClose(IpcmdAgent *agent, guint16 client_id)
 {
-	struct _IpcmdAgentClientHashkey hashkey = {
-			.link_type = link_type,
-			.service_id = service_id,
-	};
 	IpcmdClient *client;
 
-	client = g_hash_table_lookup (agent->clients_, &hashkey);
+	client = g_hash_table_lookup (agent->clients_, GINT_TO_POINTER(client_id));
 	if (!client) return;
 
 	IpcmdCoreUnregisterClient(agent->core_, client);
-	g_hash_table_remove (agent->clients_, &hashkey);
+	g_hash_table_remove (agent->clients_, GINT_TO_POINTER(client_id));
 	IpcmdClientDestroy(client);
 }
 
-void
-IpcmdAgentClientCloseServiceUdpv4 (IpcmdAgent *agent, guint16 service_id)
-{
-	IpcmdAgentClientCloseService (agent, IPCMD_HOSTLINK_UDPv4, service_id);
-}
-
 OpHandle
-IpcmdAgentClientInvokeOperation(IpcmdAgent *agent, enum IpcmdHostLinkType link_type, guint16 service_id, guint16 op_id, guint8 op_type, guint8 flags, const IpcmdOperationPayload *payload,const IpcmdOperationCallback *cb)
+IpcmdAgentClientInvokeOperation(IpcmdAgent *agent, guint16 client_id, guint16 service_id, guint16 op_id, guint8 op_type, guint8 flags, const IpcmdOperationPayload *payload,const IpcmdOperationCallback *cb)
 {
-	struct _IpcmdAgentClientHashkey hashkey = {
-			.link_type = link_type,
-			.service_id = service_id,
-	};
-	IpcmdClient *client = g_hash_table_lookup (agent->clients_, &hashkey);
+	IpcmdClient *client = g_hash_table_lookup (agent->clients_, GINT_TO_POINTER(client_id));
 
 	if (!client) return NULL;
 
-	return IpcmdClientInvokeOperation(client, op_id, op_type, flags, payload, cb);
+	return IpcmdClientInvokeOperation(client, service_id, op_id, op_type, flags, payload, cb);
 }
 
-OpHandle
-IpcmdAgentClientInvokeOperationUdpv4 (IpcmdAgent *agent, guint16 service_id, guint16 op_id, guint8 op_type, guint8 flags, const IpcmdOperationPayload *payload, const IpcmdOperationCallback *cb)
-{
-	return IpcmdAgentClientInvokeOperation (agent, IPCMD_HOSTLINK_UDPv4, service_id, op_id, op_type, flags, payload, cb);
-}
 /*
  * return:	0 on success
  * 			-1 on not registered service
  */
 gint
-IpcmdAgentClientListenNoti (IpcmdAgent *agent, enum IpcmdHostLinkType link_type, guint16 service_id, guint16 op_id, gboolean is_cyclic, const IpcmdOperationCallback *cb)
+IpcmdAgentClientListenNoti (IpcmdAgent *agent, guint16 client_id, guint16 service_id, guint16 op_id, gboolean is_cyclic, const IpcmdOperationCallback *cb)
 {
-	struct _IpcmdAgentClientHashkey hashkey = {
-			.link_type = link_type,
-			.service_id = service_id,
-	};
-	IpcmdClient *client = g_hash_table_lookup (agent->clients_, &hashkey);
+	IpcmdClient *client = g_hash_table_lookup (agent->clients_, GINT_TO_POINTER(client_id));
+
 	if (!client) return -1;
 
-	IpcmdClientSubscribeNotification(client, op_id, is_cyclic, cb);
+	IpcmdClientSubscribeNotification(client, service_id, op_id, is_cyclic, cb);
 	return 0;
-}
-gint
-IpcmdAgentClientListenNotiUdpv4 (IpcmdAgent *agent, guint16 service_id, guint16 op_id, gboolean is_cyclic, const IpcmdOperationCallback *cb)
-{
-	return IpcmdAgentClientListenNoti (agent, IPCMD_HOSTLINK_UDPv4, service_id, op_id, is_cyclic, cb);
 }
 
 void
-IpcmdAgentClientIgnoreNoti (IpcmdAgent *agent, enum IpcmdHostLinkType link_type, guint16 service_id, guint16 op_id, gboolean is_cyclic)
+IpcmdAgentClientIgnoreNoti (IpcmdAgent *agent, guint16 client_id, guint16 service_id, guint16 op_id, gboolean is_cyclic)
 {
-	struct _IpcmdAgentClientHashkey hashkey = {
-			.link_type = link_type,
-			.service_id = service_id,
-	};
-	IpcmdClient *client = g_hash_table_lookup (agent->clients_, &hashkey);
+	IpcmdClient *client = g_hash_table_lookup (agent->clients_, GINT_TO_POINTER(client_id));
+
 	if (!client) return;
 
 	//IMPL: need to consider is_cyclic
-	IpcmdClientUnsubscribeNotification(client, op_id);
+	IpcmdClientUnsubscribeNotification(client, service_id, op_id);
 }
 
-void
-IpcmdAgentClientIgnoreNotiUdpv4 (IpcmdAgent *agent, guint16 service_id, guint16 op_id, gboolean is_cyclic)
-{
-	IpcmdAgentClientIgnoreNoti (agent, IPCMD_HOSTLINK_UDPv4, service_id, op_id, is_cyclic);
-}
 
 /* IP COMMAND PROTOCOL SERVER */
 
