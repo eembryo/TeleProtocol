@@ -411,6 +411,20 @@ NetifcMonitorQueryPrefSrcForDest(NetifcMonitor* monitor, const GInetAddress *tar
 gboolean
 NetifcMonitorIsBroadcastAddress(NetifcMonitor* monitor, const GInetAddress *addr)
 {
+	//NetifcMonitorDump(monitor);
+	//g_inet_address_to_string(g_inet_socket_address_get_address(local_glib_sockaddr));
+	GHashTableIter iter;
+	gpointer key, value;
+	GInetAddress *temp_addr;
+	gchar *string;
+
+	g_hash_table_iter_init (&iter, monitor->hashIpv4BroadAddrCache);
+	while (g_hash_table_iter_next (&iter, &key, &value)) {
+		temp_addr = (GInetAddress*)key;
+		string = g_inet_address_to_string(temp_addr);
+		g_message("%s: %s",__func__, string);
+		g_free(string);
+	}
 	switch(g_inet_address_get_family((GInetAddress*)addr)) {
 	case G_SOCKET_FAMILY_IPV4:
 		return g_hash_table_contains (monitor->hashIpv4BroadAddrCache, addr);
@@ -493,7 +507,7 @@ NetifcMonitorGetAllIpv4Addr(NetifcMonitor* monitor)
     GList*          listIter = NULL;
     GList*          retList = NULL;
 
-    NetifcMonitorClearBroadAddrCache(monitor);
+    //NetifcMonitorClearBroadAddrCache(monitor);
 
     g_hash_table_iter_init (&iter, monitor->hashNetIfcs);
     while (g_hash_table_iter_next (&iter, &key, &value)) {

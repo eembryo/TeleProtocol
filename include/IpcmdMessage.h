@@ -128,7 +128,7 @@ static inline void 		IpcmdMessageSetPayloadLength(IpcmdMessage *mesg, guint32 le
 static inline gpointer 	IpcmdMessageGetPayload(IpcmdMessage *mesg)
 {	return mesg->payload_ptr;}
 static inline void		IpcmdMessageSetErrorPayload(IpcmdMessage *mesg, guint8 ecode, guint16 einfo) {
-	struct _ErrorPayload *error_payload = IpcmdMessageGetPayload(mesg);
+	struct _ErrorPayload *error_payload = (struct _ErrorPayload *)IpcmdMessageGetPayload(mesg);
 	g_assert (IpcmdMessageGetVCCPDUOpType(mesg) == IPCMD_OPTYPE_ERROR);
 	g_assert (mesg->actual_size >= IPCMD_ERROR_MESSAGE_SIZE);
 	IpcmdMessageSetPayloadLength(mesg, 3);
@@ -147,6 +147,7 @@ static inline void 		IpcmdMessageSetPayloadBuffer(IpcmdMessage *mesg, gpointer p
 void        IpcmdMessageSetOriginSockAddress(IpcmdMessage *mesg, GSocketAddress *paddr);
 gboolean    IpcmdMessageCopyOriginInetAddressString(IpcmdMessage *mesg, gpointer buf, gsize buf_len);
 guint16     IpcmdMessageGetOriginInetPort(IpcmdMessage *mesg);
+void		IpcmdMessageSetOriginHost(IpcmdMessage *mesg, IpcmdHost *origin);
 
 gboolean IpcmdMessageCopyToPayloadBuffer(IpcmdMessage *mesg, gpointer src, guint32 length);
 

@@ -22,6 +22,7 @@ project(IPCOMMANDPROTOCOL C)
 add_definitions(-DDEBUG=DLOG_LEVEL_WARN -DENABLE_LOG_COLOR -DTESTAPP_DEBUG -g -Wall)
 
 set(IPCOMM_LIB ipcmd)
+set(IPCOMM_INSTALL_PREFIX /app)
 
 include(FindPkgConfig)
 pkg_check_modules(GLIB2 REQUIRED glib-2.0)
@@ -48,7 +49,8 @@ set(LIBRARIES
 add_subdirectory(src)
 add_subdirectory(test)
 
-install(DIRECTORY include DESTINATION /app/
+#install(DIRECTORY include/ DESTINATION ${IPCOMM_INSTALL_PREFIX}/include/libipcmd
+install(DIRECTORY include/ DESTINATION ${IPCOMM_INSTALL_PREFIX}/include
   FILES_MATCHING PATTERN "*.h")
 
-install(FILES res/libipcmd.pc DESTINATION /app/lib/pkgconfig/)
+install(FILES res/libipcmd.pc DESTINATION ${IPCOMM_INSTALL_PREFIX}/lib/pkgconfig/)

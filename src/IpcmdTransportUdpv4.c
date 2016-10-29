@@ -35,6 +35,8 @@ enum Udpv4Mode {
 	kUdpv4ModeListening,
 };
 
+#define RECENT_HOSTS_SIZE	10
+
 struct _IpcmdTransportUdpv4 {
 	struct _IpcmdTransport	parent_;
 	enum Udpv4Mode		transport_mode_;
@@ -47,6 +49,8 @@ struct _IpcmdTransportUdpv4 {
 	/* ConnectingMode */
 	GInetSocketAddress	*peer_sockaddr_;	// destination socket address in case of kConnectingMode
 	guint				connect_try_id_;
+
+	IpcmdHost			*recent_used_hosts_[RECENT_HOSTS_SIZE];
 };
 
 typedef struct {
@@ -394,9 +398,14 @@ _Udpv4Receive(IpcmdTransportUdpv4 *udp_transport, GSocket *socket)
 		break;
 	case ADDRESSTYPE_IPV4_BROADCAST:
 		// if broadcast packet is sent by me, ignore it
-		if (NetifcMonitorQueryAddressType( NetifcGetInstance(), g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS(remote_glib_sockaddr)))
-				== ADDRESSTYPE_IPV4_UNICAST)
+		if (g_inet_address_equal (
+				g_inet_socket_address_get_address (udp_transport->bound_sockaddr_), g_inet_socket_address_get_address (remote_glib_sockaddr) ) &&
+			g_inet_socket_address_get_port (udp_transport->bound_sockaddr_) == g_inet_socket_address_get_port (remote_glib_sockaddr)) break;
+#if 0
+		if (NetifcMonitorQueryAddressType( NetifcGetInstance(), g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS(remote_glib_sockaddr))) == ADDRESSTYPE_IPV4_UNICAST &&
+				g_inet_socket_address_get_port (udp_transport->bound_sockaddr_) == g_inet_socket_address_get_address (G_INET_SOCKET_ADDRESS(remote_glib_sockaddr)))
 			break;
+#endif
 		// look for broadcast channel, which matches to local_glib_sockaddr
 		key.local_sockaddr = udp_transport->bound_sockaddr_;
 		key.remote_sockaddr = local_glib_sockaddr;
@@ -404,6 +413,12 @@ _Udpv4Receive(IpcmdTransportUdpv4 *udp_transport, GSocket *socket)
 		channel = (IpcmdChannel *)g_hash_table_lookup(udp_transport->channels_, &key);
 		if (!channel) {
 			g_error ("Receive broadcasting packet with not registered broadcasting address.");
+		}
+
+		{
+			IpcmdHost *sender = IpcmdUdpv4HostNew2 (remote_glib_sockaddr);
+			IpcmdMessageSetOriginHost(new_mesg,sender);
+			IpcmdHostUnref(sender);
 		}
 		break;
 	default:

@@ -53,8 +53,8 @@ IpcmdAgentFree(IpcmdAgent *agent)
  * Create udp/tcp transport and register it to IP command protocol core.
  *
  * return : positive integer on success
- * 			-1 on not enough memory
- * 			-2 when can not use local address and port
+ * 			-1 not enough memory
+ * 			-2 Error binding to address: Cannot assign requested address or port
  * 			-3 when maximum number of transports are registered
  */
 gint
@@ -82,7 +82,7 @@ IpcmdAgentTransportAdd (IpcmdAgent *agent, const TransportDesc *transport_desc)
 
 		if (desc_udpv4->is_server_) {
 			transport->listen(transport,10);
-			if (desc_udpv4->allow_broadcast_) IpcmdUdpv4EnableBroadcast (transport, desc_udpv4->broadcast_port_ ? desc_udpv4->broadcast_port_ : desc_udpv4->local_port_);
+			//if (desc_udpv4->allow_broadcast_) IpcmdUdpv4EnableBroadcast (transport, desc_udpv4->broadcast_port_ ? desc_udpv4->broadcast_port_ : desc_udpv4->local_port_);
 		}
 		else {
 			transport->connect(transport, desc_udpv4->remote_addr_, desc_udpv4->remote_port_);
@@ -116,14 +116,13 @@ IpcmdAgentTransportAdd (IpcmdAgent *agent, const TransportDesc *transport_desc)
 }
 
 gint
-IpcmdAgentTransportAddUdpv4Server (IpcmdAgent *agent, gchar *local_addr, guint16 local_port, gboolean allow_broadcast)
+IpcmdAgentTransportAddUdpv4Server (IpcmdAgent *agent, gchar *local_addr, guint16 local_port)
 {
 	struct _TransportDescUdpv4 desc = {
 			.parent_.link_type_ = IPCMD_HOSTLINK_UDPv4,
 			.is_server_ = TRUE,
 			.local_addr_ = local_addr,
 			.local_port_ = local_port,
-			.allow_broadcast_ = allow_broadcast,
 			.remote_addr_ = NULL,
 			.remote_port_ = 0,
 	};
@@ -164,6 +163,18 @@ IpcmdAgentTransportRemove(IpcmdAgent *agent, gint transport_id)
 	}
 }
 
+gint
+IpcmdAgentTransportEnableBroadcast (IpcmdAgent *agent, gint transport_id, guint16 dst_port)
+{
+	IpcmdTransport *transport = g_hash_table_lookup (agent->transports_, GINT_TO_POINTER(transport_id));
+
+	if (!transport) return -1;
+
+	if (!IpcmdUdpv4EnableBroadcast (transport, dst_port)) {
+		return -2;	//cannot enable broadcast feature
+	}
+	return 0;
+}
 /* IP COMMAND PROTOCOL CLIENT */
 
 /* @fn: IpcmdAgentClientConnectToService
@@ -226,10 +237,18 @@ OpHandle
 IpcmdAgentClientInvokeOperation(IpcmdAgent *agent, guint16 client_id, guint16 service_id, guint16 op_id, guint8 op_type, guint8 flags, const IpcmdOperationPayload *payload,const IpcmdOperationCallback *cb)
 {
 	IpcmdClient *client = g_hash_table_lookup (agent->clients_, GINT_TO_POINTER(client_id));
+	GError *error = NULL;
+	OpHandle handle;
 
 	if (!client) return NULL;
 
-	return IpcmdClientInvokeOperation(client, service_id, op_id, op_type, flags, payload, cb);
+	handle = IpcmdClientInvokeOperation(client, service_id, op_id, op_type, flags, payload, cb, &error);
+	if (!handle) {
+		g_error_free (error);
+		return NULL;
+	}
+
+	return handle;
 }
 
 /*

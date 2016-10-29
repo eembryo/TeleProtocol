@@ -8,10 +8,10 @@
 #ifndef INCLUDE_IPCMDAGENT_H_
 #define INCLUDE_IPCMDAGENT_H_
 
-#include "../include/IpcmdDeclare.h"
-#include "../include/IpcmdOperation.h"
-#include "../include/IpcmdHost.h"
-#include "../include/IpcmdMessage.h"
+#include "IpcmdDeclare.h"
+#include "IpcmdOperation.h"
+#include "IpcmdHost.h"
+#include "IpcmdMessage.h"
 #include <glib.h>
 
 G_BEGIN_DECLS
@@ -46,12 +46,12 @@ void	IpcmdAgentFree(IpcmdAgent *agent);
  * @param[in] transport_desc: transport configuration to be created
  * @return transport id if it successfully added
  * @retval positive integer on success
- * @retval -1 on not enough memory
- * @retval -2 on wrong local address or port
- * @retval -3 when maximum number of transports are added
+ * @retval -1 Error not enough memory
+ * @retval -2 Error binding to address: Cannot assign requested address or port
+ * @retval -3 Error maximum number of transports are added
  */
 gint IpcmdAgentTransportAdd (IpcmdAgent *agent, const TransportDesc *transport_desc);
-gint IpcmdAgentTransportAddUdpv4Server (IpcmdAgent *agent, gchar *local_addr, guint16 local_port, gboolean allow_broadcast);
+gint IpcmdAgentTransportAddUdpv4Server (IpcmdAgent *agent, gchar *local_addr, guint16 local_port);
 gint IpcmdAgentTransportAddUdpv4Client (IpcmdAgent *agent, gchar *local_addr, guint16 local_port, gchar *remote_addr, guint16 remote_port);
 /**
  * @fn IpcmdAgentTransportRemove
@@ -60,6 +60,8 @@ gint IpcmdAgentTransportAddUdpv4Client (IpcmdAgent *agent, gchar *local_addr, gu
  * @param[in] transport_id: transport id, which was returned in IpcmdAgentTransportAdd()
  */
 void IpcmdAgentTransportRemove (IpcmdAgent *agent, gint transport_id);
+
+gint IpcmdAgentTransportEnableBroadcast (IpcmdAgent *agent, gint transport_id, guint16 dest_port);
 
 /***********************************
  * IP COMMAND PROTOCOL CLIENT */

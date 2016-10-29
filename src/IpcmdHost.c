@@ -59,18 +59,59 @@ _Udpv4HostEqual(const IpcmdHost* a, const IpcmdHost* b)
 	{
 		GInetAddress *a_inet_addr = g_inet_socket_address_get_address(udpv4_host_a->inet_sockaddr_);
 		GInetAddress *b_inet_addr = g_inet_socket_address_get_address(udpv4_host_b->inet_sockaddr_);
-		return g_inet_address_equal (a_inet_addr, b_inet_addr);
+#if 0
+		{
+			gchar *a_str = g_inet_address_to_string (a_inet_addr);
+			gchar *b_str = g_inet_address_to_string (b_inet_addr);;
+			g_debug("%s:%d == %s:%d ?", a_str, g_inet_socket_address_get_port (udpv4_host_a->inet_sockaddr_), b_str, g_inet_socket_address_get_port (udpv4_host_b->inet_sockaddr_));
+		}
+#endif
+		return g_inet_address_equal (a_inet_addr, b_inet_addr) &&
+				g_inet_socket_address_get_port (udpv4_host_a->inet_sockaddr_) == g_inet_socket_address_get_port (udpv4_host_b->inet_sockaddr_) ? TRUE : FALSE;
 	}
 	/*
 	return	g_inet_address_equal (g_inet_socket_address_get_address (udpv4_host_a->inet_sockaddr_), g_inet_socket_address_get_address (udpv4_host_b->inet_sockaddr_)) &&
 			g_inet_socket_address_get_port (udpv4_host_a->inet_sockaddr_) == g_inet_socket_address_get_port (udpv4_host_a->inet_sockaddr_) ? TRUE : FALSE;
 			*/
 }
+gboolean
+IpcmdUdpv4HostEqual(const IpcmdHost *a, GInetAddress *addr, guint16 port)
+{
+	struct _IpcmdUdpv4Host* udpv4_host_a = (IpcmdUdpv4Host*)a;
+	GInetAddress *a_inet_addr;
+
+	if (a->host_type_ != IPCMD_HOSTLINK_UDPv4) return FALSE;
+
+	a_inet_addr = g_inet_socket_address_get_address(udpv4_host_a->inet_sockaddr_);
+	return g_inet_address_equal (a_inet_addr, addr) && g_inet_socket_address_get_port (udpv4_host_a->inet_sockaddr_) == port;
+}
+
+gboolean
+IpcmdUdpv4HostEqual2(const IpcmdHost *a, GInetSocketAddress *sock_addr)
+{
+	return IpcmdUdpv4HostEqual (a, g_inet_socket_address_get_address (sock_addr), g_inet_socket_address_get_port (sock_addr));
+}
 
 static IpcmdHost*
 _Udpv4HostDuplicate(const IpcmdHost *host)
 {
 	return IpcmdUdpv4HostNew2( ((struct _IpcmdUdpv4Host*)host)->inet_sockaddr_);
+}
+
+static gchar*
+_Udpv4HostToString(IpcmdHost *self)
+{
+	struct _IpcmdUdpv4Host *host = (struct _IpcmdUdpv4Host*)self;
+	gchar *string;
+
+	if (host->string_) return host->string_;
+	host->string_ = g_malloc(25+1);	//udp_xxx.xxx.xxx.xxx_ppppp
+	if (!host->string_) return NULL;	// not enough memory
+	string = g_inet_address_to_string (g_inet_socket_address_get_address (host->inet_sockaddr_));
+	g_snprintf(host->string_, 25+1, "udp_%s_%d", string, g_inet_socket_address_get_port (host->inet_sockaddr_));
+	g_free(string);
+
+	return host->string_;
 }
 /* _Udpv4HostFree :
  * This is called when reference count for IpcmdHost reaches to zero.
@@ -83,8 +124,16 @@ _Udpv4HostFree(struct ref *r)
 	struct _IpcmdUdpv4Host *host = (struct _IpcmdUdpv4Host*)container_of(r, struct _IpcmdHost, ref_);
 
 	g_object_unref (host->inet_sockaddr_);
+	if (host->string_) g_free(host->string_);
 	g_free (host);
 }
+
+static struct _IpcmdHost udpv4_ops = {
+		.host_type_ = IPCMD_HOSTLINK_UDPv4,
+		.equal = _Udpv4HostEqual,
+		.duplicate = _Udpv4HostDuplicate,
+		.to_string = _Udpv4HostToString,
+};
 
 /* IpcmdUdpv4HostNew :
  * Create IpcmdUdpv4Host instance and return IpcmdHost*.
@@ -101,15 +150,13 @@ IpcmdUdpv4HostNew (GInetAddress *address, guint16 port)
 
 	if (!host) goto _IpcmdUdpv4HostNew_failed;
 
-	host->parent_.host_type_ = IPCMD_HOSTLINK_UDPv4;
-	host->parent_.equal = _Udpv4HostEqual;
-	host->parent_.duplicate = _Udpv4HostDuplicate;
-	host->inet_sockaddr_ = G_INET_SOCKET_ADDRESS (g_inet_socket_address_new (address, port));
+	host->parent_ 			= udpv4_ops;
+	host->string_ 			= NULL;
+	host->inet_sockaddr_	= G_INET_SOCKET_ADDRESS (g_inet_socket_address_new (address, port));
 	if (host->inet_sockaddr_ == NULL) goto _IpcmdUdpv4HostNew_failed;
-
 	ref_init(&host->parent_.ref_, _Udpv4HostFree);
 
-	return &host->parent_;
+	return IpcmdHostRef(&host->parent_);
 
 	_IpcmdUdpv4HostNew_failed:
 	if (host) g_free(host);
@@ -131,15 +178,13 @@ IpcmdUdpv4HostNew2 (GInetSocketAddress *sock_addr)
 
 	if (!host) goto _IpcmdUdpv4HostNew2_failed;
 
-	host->parent_.host_type_ = IPCMD_HOSTLINK_UDPv4;
-	host->parent_.equal = _Udpv4HostEqual;
-	host->parent_.duplicate = _Udpv4HostDuplicate;
-	host->inet_sockaddr_ = g_object_ref(sock_addr);
+	host->parent_ 			= udpv4_ops;
+	host->string_ 			= NULL;
+	host->inet_sockaddr_	= g_object_ref(sock_addr);
 
 	ref_init(&host->parent_.ref_, _Udpv4HostFree);
-	IpcmdHostRef(&host->parent_);
 
-	return &host->parent_;
+	return IpcmdHostRef(&host->parent_);
 
 	_IpcmdUdpv4HostNew2_failed:
 	if (host) g_free(host);

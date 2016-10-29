@@ -101,7 +101,7 @@ gboolean				IpcmdOpCtxCancelTimer(IpcmdOpCtx *opContext);
 IpcmdOpCtx*				IpcmdOpCtxRef(IpcmdOpCtx *ctx);
 void					IpcmdOpCtxUnref(IpcmdOpCtx *ctx);
 
-inline gboolean			IpcmdOpCtxIdIsMatch(const IpcmdOpCtxId *a, const IpcmdOpCtxId *b)
+static inline gboolean	IpcmdOpCtxIdIsMatch(const IpcmdOpCtxId *a, const IpcmdOpCtxId *b)
 {
 	return a->channel_id_ == b->channel_id_ && a->sender_handle_id_ == b->sender_handle_id_ ? TRUE : FALSE;
 }

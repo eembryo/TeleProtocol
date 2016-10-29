@@ -7,6 +7,7 @@
 
 #include "../include/IpcmdMessage.h"
 #include "../include/reference.h"
+#include "../include/IpcmdHost.h"
 #include <glib.h>
 #include <string.h>
 
@@ -110,4 +111,29 @@ IpcmdMessageSetOriginSockAddress(IpcmdMessage *mesg, GSocketAddress *paddr)
     if (mesg->origin_addr) g_object_unref(paddr);
 
     mesg->origin_addr = g_object_ref(paddr);
+}
+
+gboolean
+IpcmdMessageCopyOriginInetAddressString(IpcmdMessage *mesg, gpointer buf, gsize buf_len)
+{
+	gchar*          addr_str;
+
+	if (!mesg->origin_host) return FALSE;
+	if (mesg->origin_host->host_type_ != IPCMD_HOSTLINK_UDPv4)
+		return FALSE;
+
+	{
+		IpcmdUdpv4Host *udp_host = (IpcmdUdpv4Host*)mesg->origin_host;
+		addr_str = g_inet_address_to_string(g_inet_socket_address_get_address(udp_host->inet_sockaddr_));
+		g_strlcpy(buf, addr_str, buf_len);
+		g_free(addr_str);
+	}
+
+	return TRUE;
+}
+
+void
+IpcmdMessageSetOriginHost(IpcmdMessage *mesg, IpcmdHost *origin)
+{
+	mesg->origin_host = IpcmdHostRef(origin);
 }

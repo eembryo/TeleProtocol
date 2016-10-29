@@ -54,6 +54,13 @@ static void 	_OnUnregisteredFromCore (IpcmdClient *self, IpcmdCore *core);
 		IpcmdMessageUnref(ack_message);\
 }while(0)
 
+#define IPCMD_CLIENT_ERROR IpcomClientErrorQuark()
+static GQuark
+IpcomClientErrorQuark(void)
+{
+	return g_quark_from_static_string ("ipcmd-client-error-quark");
+}
+
 /* @fn: IpcmdClientHandleMessage
  * Handle incoming messages such as RESPONSE, NOTIFICATION, NOTIFICATION_CYCLIC, ACK and ERROR.
  *
@@ -179,11 +186,15 @@ IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMess
 
 /* IpmdClientInvokeOperation :
  * create IP COMMAND message and send it to bus.
+ * @param[out] error: error code is -1 if Server host is unreachable, -2 on wrong op_type, -3 if too many operations exist.
+ * @return operation handle or NULL
+ * @retval NULL on failed to invoke the operation.
+ * @retval a constant pointer on success
  */
 OpHandle
-IpcmdClientInvokeOperation(IpcmdClient *self, guint16 service_id, guint16 operation_id, guint8 op_type, guint8 flags, const IpcmdOperationPayload *payload, const IpcmdOperationCallback *cb)
+IpcmdClientInvokeOperation(IpcmdClient *self, guint16 service_id, guint16 operation_id, guint8 op_type, guint8 flags, const IpcmdOperationPayload *payload, const IpcmdOperationCallback *cb, GError **error)
 {
-	IpcmdOpCtx *ctx;
+	IpcmdOpCtx *ctx = NULL;
 	IpcmdOperationInfoInvokeMessage info;
 	gint	ret;
 	guint8	num;
@@ -200,7 +211,8 @@ IpcmdClientInvokeOperation(IpcmdClient *self, guint16 service_id, guint16 operat
 	};
 
 	if (self->channel_id_ == 0) { // if no channel for server_host, return NULL
-		return NULL;
+		g_set_error (error, IPCMD_CLIENT_ERROR, -1, "Host(%s) is unreachable", self->server_host_->to_string (self->server_host_));
+		goto IpcmdClientInvokeOperation_failed;
 	}
 
 	// 1. allocate IpcmdOpCtx from core and setup it
@@ -251,17 +263,20 @@ IpcmdClientInvokeOperation(IpcmdClient *self, guint16 service_id, guint16 operat
 		ret = IpcmdOpCtxTrigger (ctx, kIpcmdTriggerSendNotreq, (const IpcmdOperationInfo*)&info);
 		break;
 	default:
-		//IMPL: report error message
-		g_error("Wrong Operation Type.");
+		g_set_error (error, IPCMD_CLIENT_ERROR, -2, "A wrong operation type(%d) is requested", op_type);
+		goto IpcmdClientInvokeOperation_failed;
 		break;
 	}
 	if (ret < 0) {	//failed to send request
-		//IMPL: report error message
-		g_error("fail to invoke operation");
+		g_error ("Failed to trigger opeartion context.");
 		return NULL;
 	}
 
 	return ctx;
+
+	IpcmdClientInvokeOperation_failed:
+	if (ctx) _OnOpCtxFinalized ( ctx->opctx_id_, (gpointer)self);
+	return NULL;
 }
 
 

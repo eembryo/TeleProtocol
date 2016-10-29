@@ -9,17 +9,17 @@
 #include "../include/IpcmdMessage.h"
 #include <glib.h>
 
-#define TRANSPORT_LOCAL_ADDRESS "192.168.0.13"
+#define TRANSPORT_LOCAL_ADDRESS "10.177.222.162"
 #define TRANSPORT_LOCAL_PORT 50000
 #define TRANSPORT_ALLOW_BROADCAST TRUE
 
 #define SERVER_SERVICE_ID	0x00A1
 #define SERVER_NOTIFICATION_OPERATION_ID 0x0107
 
-#define SUBSCRIBER_UDP_ADDRESS "192.168.0.13"
+#define SUBSCRIBER_UDP_ADDRESS "10.177.222.162"
 #define SUBSCRIBER_UDP_PORT 40000
 
-#define CLIENT_REMOTE_SERVICE_UDP_ADDRESS	"192.168.0.13"
+#define CLIENT_REMOTE_SERVICE_UDP_ADDRESS	"10.177.222.162"
 #define CLIENT_REMOTE_SERVICE_UDP_PORT		40000
 #define CLIENT_REMOTE_SERVICE_ID 0x00A7
 #define CLIENT_REMOTE_OPERATION_ID 0x0702
@@ -150,7 +150,7 @@ RequestOperation(gpointer data)
 	return G_SOURCE_CONTINUE;
 }
 
-gint main()
+gint main(gint argc, gchar *argv[])
 {
 	GMainLoop	*loop = g_main_loop_new (g_main_context_default(), FALSE);
 	gint	client_id;
@@ -158,7 +158,7 @@ gint main()
 	agent = IpcmdAgentNew (g_main_context_default());
 
 	// Setup Transport Layer
-	IpcmdAgentTransportAddUdpv4Server (agent, TRANSPORT_LOCAL_ADDRESS, TRANSPORT_LOCAL_PORT, FALSE);
+	IpcmdAgentTransportAddUdpv4Server (agent, TRANSPORT_LOCAL_ADDRESS, TRANSPORT_LOCAL_PORT);
 
 	// Create new service to process operations, requested by remote clients
 	IpcmdAgentServerOpenService (agent, SERVER_SERVICE_ID, server_service_exec_callback, agent, NULL);

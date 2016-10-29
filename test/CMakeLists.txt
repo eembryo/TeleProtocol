@@ -34,12 +34,12 @@ target_link_libraries(ServerAgentTest
 	${LIBRARIES}
 	${IPCOMM_LIB})
 
-#add_executable(ServerAgentTestBroadcastNoti ./ServerAgentTestBroadcastNoti.c)
-#target_include_directories(ServerAgentTestBroadcastNoti PRIVATE ${GLIB_INCLUDE_DIRS})
-#target_link_libraries(ServerAgentTestBroadcastNoti
-#	${LIBRARIES}
-#	${IPCOMM_LIB})
-
+add_executable(ServerAgentTestBroadcastNoti ./ServerAgentTestBroadcastNoti.c)
+target_include_directories(ServerAgentTestBroadcastNoti PRIVATE ${GLIB_INCLUDE_DIRS})
+target_link_libraries(ServerAgentTestBroadcastNoti
+	${LIBRARIES}
+	${IPCOMM_LIB})
+	
 add_executable(ClientAgentTest ./ClientAgentTest.c)
 target_include_directories(ClientAgentTest PRIVATE ${GLIB_INCLUDE_DIRS})
 target_link_libraries(ClientAgentTest

@@ -16,8 +16,8 @@
 #define SERVER_SERVICE_ID	0xFFFF
 #define SERVER_NOTIFICATION_OPERATION_ID 0xFF01
 
-#define SUBSCRIBER_UDP_ADDRESS "192.168.0.255"
-#define SUBSCRIBER_UDP_PORT 40000
+#define BROADCAST_ADDRESS "192.168.0.255"
+#define BROADCAST_PORT 40000
 
 #define CLIENT_REMOTE_SERVICE_UDP_ADDRESS	"192.168.0.255"
 #define CLIENT_REMOTE_SERVICE_UDP_PORT		40000
@@ -115,7 +115,7 @@ SendNotification(gpointer data)
 	IpcmdOperationInfoReplyMessage reply_info;
 	IpcmdOperationInfoReplyMessageInit(&reply_info);
 
-	reply_info.op_type_ = IPCMD_OPTYPE_NOTIFICATION;
+	reply_info.op_type_ = IPCMD_OPTYPE_NOTIFICATION_CYCLIC;
 	reply_info.payload_.data_ = payload_data;
 	reply_info.payload_.length_ = 10;
 	reply_info.payload_.type_ = IPCMD_PAYLOAD_NOTENCODED;
@@ -126,36 +126,17 @@ SendNotification(gpointer data)
 	return G_SOURCE_CONTINUE;
 }
 
-static gboolean
-RequestOperation(gpointer data)
-{
-	gint client_id = GPOINTER_TO_INT(data);
-
-	IpcmdOperationCallback	op_cb = {
-			.cb_func = client_service_operation_callback,
-			.cb_destroy = NULL,
-			.cb_data = agent,
-	};
-	gchar payload_data[10] = {0xf0, 0xf0,0xf0, 0xf0,0xf0, 0xf0,0xf0, 0xf0,0xf0, 0xf0};
-	IpcmdOperationPayload payload = {
-			.data_ = payload_data,
-			.length_ = 10,
-			.type_ = IPCMD_PAYLOAD_NOTENCODED,
-	};
-	IpcmdAgentClientInvokeOperation (agent, client_id, CLIENT_REMOTE_SERVICE_ID, CLIENT_REMOTE_OPERATION_ID, CLIENT_REMOTE_OPERATION_TYPE, 0x0, &payload, &op_cb);
-
-	return G_SOURCE_CONTINUE;
-}
-
 gint main()
 {
 	GMainLoop	*loop = g_main_loop_new (g_main_context_default(), FALSE);
 	gint	client_id;
+	gint	transport_id;
 
 	agent = IpcmdAgentNew (g_main_context_default());
 
 	// Setup Transport Layer
-	IpcmdAgentTransportAddUdpv4Server (agent, TRANSPORT_LOCAL_ADDRESS, TRANSPORT_LOCAL_PORT, FALSE);
+	transport_id = IpcmdAgentTransportAddUdpv4Server (agent, TRANSPORT_LOCAL_ADDRESS, TRANSPORT_LOCAL_PORT);
+	IpcmdAgentTransportEnableBroadcast (agent, transport_id, BROADCAST_PORT);
 
 	// Create new service to process operations, requested by remote clients
 	IpcmdAgentServerOpenService (agent, SERVER_SERVICE_ID, server_service_exec_callback, agent, NULL);
@@ -169,12 +150,12 @@ gint main()
 	IpcmdAgentServerAddNotiSubscriberUdpv4 (agent,
 			SERVER_SERVICE_ID,	//service id
 			SERVER_NOTIFICATION_OPERATION_ID, //operation id
-			FALSE,	//NOTIFICATION_CYCLIC ?
-			SUBSCRIBER_UDP_ADDRESS,			//address of subscriber
-			SUBSCRIBER_UDP_PORT,			//port of subscriber
+			TRUE,	//NOTIFICATION_CYCLIC ?
+			BROADCAST_ADDRESS,			//address of subscriber
+			BROADCAST_PORT,			//port of subscriber
 			TRUE	//is the subscriber static ?
 			);
-	g_timeout_add(10*1000, SendNotification, agent); //send notification to clients every 10 seconds
+	g_timeout_add(1*1000, SendNotification, agent); //send notification to clients every 10 seconds
 
 	// Create new client to request operations
 	client_id = IpcmdAgentClientOpenUdpv4 (agent, CLIENT_REMOTE_SERVICE_UDP_ADDRESS, CLIENT_REMOTE_SERVICE_UDP_PORT);
@@ -183,7 +164,14 @@ gint main()
 	// IpcmdAgentClientOpenServiceUdpv4 (agent, CLIENT_REMOTE_SERVICE_ID2, CLIENT_REMOTE_SERVICE_UDP_ADDRESS2, CLIENT_REMOTE_SERVICE_UDP_PORT2);
 	// IpcmdAgentClientOpenServiceUdpv4 (agent, CLIENT_REMOTE_SERVICE_ID3, CLIENT_REMOTE_SERVICE_UDP_ADDRESS3, CLIENT_REMOTE_SERVICE_UDP_PORT3);
 	// ...
-	g_timeout_add(5*1000, RequestOperation, GINT_TO_POINTER(client_id));	//send REQUEST message to server every 5 seconds
-
+	{
+		IpcmdOperationCallback	op_cb = {
+				.cb_func = client_service_operation_callback,
+				.cb_destroy = NULL,
+				.cb_data = agent,
+		};
+		IpcmdAgentClientListenNoti (agent, client_id, 0, 0, TRUE, &op_cb);	//get notification cyclic
+		IpcmdAgentClientListenNoti (agent, client_id, 0, 0, FALSE, &op_cb);	//get notification
+	}
 	g_main_loop_run (loop);
 }

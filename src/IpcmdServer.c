@@ -404,7 +404,7 @@ _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id, guint type,
 		// nothing to do
 		break;
 	case kBusEventChannelRemove:
-		// IMPL: remove operations related to id
+		// IMPL: remove operations related to channel 'id'
 		break;
 	case kBusEventChannelStatusChange:
 		// IMPL: not implemented

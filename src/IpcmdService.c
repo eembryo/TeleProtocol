@@ -109,15 +109,21 @@ IpcmdServiceInformNotification(IpcmdService *self, guint16 operation_id, const I
 	 */
 	l=group->subscriber_;
 	while (l!=NULL) {
+		guint8 seq_num;
+
 		subscriber = (IpcmdNotifSubscriber*)l->data;
-		ret = IpcmdServerSendNotification (self->server_, self->service_id_, operation_id, &subscriber->last_seq_num, subscriber->host_, (const IpcmdOperationInfo*)info);
+		seq_num = subscriber->last_seq_num + 1;
+		ret = IpcmdServerSendNotification (self->server_, self->service_id_, operation_id, &seq_num, subscriber->host_, (const IpcmdOperationInfo*)info);
 		if (ret == -2 && !subscriber->is_static_) { // subscriber is dynamic host and unreachable,
 			GList *pl = l;
 			l=l->next;
 			_FreeNotifSubscriber ((IpcmdNotifSubscriber*)pl->data);
 			group->subscriber_ = g_list_delete_link (group->subscriber_, pl);
 		}
-		else l=l->next;
+		else {
+			subscriber->last_seq_num = seq_num;
+			l=l->next;
+		}
 	}
 	// check that notification group is empty
 	if (group->subscriber_ == NULL) {	//if empty, remove the notification group
