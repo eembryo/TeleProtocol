@@ -400,3 +400,25 @@ void IpcmdAgentServerRemoveNotiSubscriberUdpv4 (IpcmdAgent *agent, guint16 servi
 	IpcmdAgentServerRemoveNotiSubscriber (agent, service_id, op_id, is_cyclic, subscriber);
 	IpcmdHostUnref (subscriber);
 }
+
+gint
+IpcmdAgentTransportAddUdpv4ManualChannel (IpcmdAgent *agent, gint transport_id, gchar *local_addr, guint16 local_port, gchar *remote_addr, guint16 remote_port)
+{
+	IpcmdTransport *transport = g_hash_table_lookup (agent->transports_, GINT_TO_POINTER(transport_id));
+	GInetSocketAddress *local_inet_sockaddr;
+	GInetSocketAddress *remote_inet_sockaddr;
+	gint ret;
+
+	if (transport->type_ != kIpcmdTransportUdpv4)
+		return -101;
+
+	local_inet_sockaddr = G_INET_SOCKET_ADDRESS(g_inet_socket_address_new_from_string (local_addr, local_port));
+	remote_inet_sockaddr = G_INET_SOCKET_ADDRESS(g_inet_socket_address_new_from_string (remote_addr, remote_port));
+
+	ret = IpcmdUdpv4AddManualChannel (transport, local_inet_sockaddr, remote_inet_sockaddr);
+
+	g_object_unref(local_inet_sockaddr);
+	g_object_unref(remote_inet_sockaddr);
+
+	return ret;
+}

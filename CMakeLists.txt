@@ -49,8 +49,7 @@ set(LIBRARIES
 add_subdirectory(src)
 add_subdirectory(test)
 
-#install(DIRECTORY include/ DESTINATION ${IPCOMM_INSTALL_PREFIX}/include/libipcmd
-install(DIRECTORY include/ DESTINATION ${IPCOMM_INSTALL_PREFIX}/include
+install(DIRECTORY include/ DESTINATION ${IPCOMM_INSTALL_PREFIX}/include/libipcmd
   FILES_MATCHING PATTERN "*.h")
 
 install(FILES res/libipcmd.pc DESTINATION ${IPCOMM_INSTALL_PREFIX}/lib/pkgconfig/)

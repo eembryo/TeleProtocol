@@ -457,7 +457,7 @@ _Udpv4CheckSocket(GSocket *socket, GIOCondition cond, gpointer data)
 		_Udpv4Receive (udp_transport, socket);
 	}
 	else if (cond & G_IO_ERR) {
-		_Udpv4ErrorReceive (udp_transport, socket);
+		//_Udpv4ErrorReceive (udp_transport, socket);
 	}
 	else {	//probably G_IO_ERR or G_IO_HUP
 		return FALSE;
@@ -980,4 +980,42 @@ IpcmdTransportUdpv4Destroy(IpcmdTransport *transport)
 	}
 
 	g_free(udp_transport);
+}
+
+/****
+ * Manually create a channel.
+ * DO NOT USE this function if you do not sure.
+ * @retval 0 success
+ * @retval -1 not enough memory
+ * @retval -2 already existing channel
+ * @retval -3 failed to register the channel to bus
+ */
+gint
+IpcmdUdpv4AddManualChannel(IpcmdTransport *transport, GInetSocketAddress *local_inet_sockaddr, GInetSocketAddress *remote_inet_sockaddr)
+{
+	struct _IpcmdTransportUdpv4 *udp_transport = IPCMD_TRANSPORTUDPv4(transport);
+	IpcmdChannel	*channel = NULL;
+	ChannelHashkey		key = {
+			.local_sockaddr = local_inet_sockaddr,
+			.remote_sockaddr = remote_inet_sockaddr,
+	};
+
+	channel = (IpcmdChannel *)g_hash_table_lookup(udp_transport->channels_, &key);
+	if (channel) {//already registered channel
+		return -2;
+	}
+
+	channel = _Udpv4ChannelNew(local_inet_sockaddr, remote_inet_sockaddr, udp_transport);
+	if (!channel) return -1;
+
+	channel->status_ = kChannelEstablished;
+
+	if (!IpcmdBusRegisterChannel (IPCMD_TRANSPORT(udp_transport)->bus_, channel)) { // bus may reject this channel
+		_Udpv4ChannelFree (channel);
+		return -3;
+	}
+
+	_Udpv4AddChannel(udp_transport, channel);
+
+	return 0;
 }

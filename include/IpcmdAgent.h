@@ -63,6 +63,11 @@ void IpcmdAgentTransportRemove (IpcmdAgent *agent, gint transport_id);
 
 gint IpcmdAgentTransportEnableBroadcast (IpcmdAgent *agent, gint transport_id, guint16 dest_port);
 
+/**
+ * @fn IpcmdAgentTransportAddUdpv4ManualChannel
+ * @brief Force the transport to create specific channel. DONOT use this function if you not sure
+ */
+gint IpcmdAgentTransportAddUdpv4ManualChannel (IpcmdAgent *agent, gint transport_id, gchar *local_addr, guint16 local_port, gchar *remote_addr, guint16 remote_port);
 /***********************************
  * IP COMMAND PROTOCOL CLIENT */
 /***********************************

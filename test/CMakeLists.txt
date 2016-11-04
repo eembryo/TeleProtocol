@@ -45,3 +45,10 @@ target_include_directories(ClientAgentTest PRIVATE ${GLIB_INCLUDE_DIRS})
 target_link_libraries(ClientAgentTest
 	${LIBRARIES}
 	${IPCOMM_LIB})	
+
+
+add_executable(ServerAgentTest2 ./ServerAgentTest2.c)
+target_include_directories(ServerAgentTest2 PRIVATE ${GLIB_INCLUDE_DIRS})
+target_link_libraries(ServerAgentTest2
+	${LIBRARIES}
+	${IPCOMM_LIB})
