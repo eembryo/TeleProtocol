@@ -109,8 +109,12 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 	to_app_cb.cb_data = service;
 	//to_app_cb.cb_data = service;
 	// OperationID		-- Application will do
-	// OperationType	-- check in below
-	// Length			-- Application will do
+	// OperationType	-- Application will do
+	// Length
+	if (IpcmdMessageGetVCCPDULength(mesg)+8 != IpcmdMessageGetLength(mesg) ) {
+		REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_INVALID_LENGTH, 0);
+		goto _HandleMessage_done;
+	}
 	// Busy				-- check in below
 	// Processing		-- check in Operation Context
 	// ApplicationError	-- Application will do

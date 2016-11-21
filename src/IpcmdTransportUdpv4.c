@@ -323,12 +323,6 @@ _Udpv4Receive(IpcmdTransportUdpv4 *udp_transport, GSocket *socket)
 		g_warning("%s", strerror(errno));
 		goto _Udpv4Receive_failed;
 	}
-
-	/* if VCCCPDUHeader->length+8 != length, this packet is damaged! */
-	if (IpcmdMessageGetVCCPDULength(new_mesg)+8 != length) {
-		g_info("The length field in VCCPDU header is inconsistent with actual received packet length. Silently discard.");
-		goto _Udpv4Receive_failed;
-	}
 	IpcmdMessageSetLength(new_mesg, length);
 
 	/* Receive auxiliary data in msgh */
@@ -457,7 +451,9 @@ _Udpv4CheckSocket(GSocket *socket, GIOCondition cond, gpointer data)
 		_Udpv4Receive (udp_transport, socket);
 	}
 	else if (cond & G_IO_ERR) {
-		//_Udpv4ErrorReceive (udp_transport, socket);
+#ifdef ICMP_ERROR_HANDLING
+		_Udpv4ErrorReceive (udp_transport, socket);
+#endif
 	}
 	else {	//probably G_IO_ERR or G_IO_HUP
 		return FALSE;
@@ -918,12 +914,13 @@ IpcmdTransportUdpv4New()
 		g_error_free(gerror);
 		goto _Udpv4New_failed;
 	}
+#if ICMP_ERROR_HANDLING
 	if (!g_socket_set_option(udp_socket, IPPROTO_IP, IP_RECVERR, 1, &gerror)) {
 		g_warning("%s", gerror->message);
 		g_error_free(gerror);
 		goto _Udpv4New_failed;
 	}
-
+#endif
 	new_transport = g_malloc0(sizeof(IpcmdTransportUdpv4));
 	if (!new_transport) {
 		goto _Udpv4New_failed;

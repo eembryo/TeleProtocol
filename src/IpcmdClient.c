@@ -94,7 +94,11 @@ IpcmdClientHandleMessage(IpcmdClient *self, IpcmdChannelId channel_id, IpcmdMess
 	// Service ID - will be checked at application
 	// OperationID - will be checked at application
 	// OperationType - will be checked at State Machine
-	// Length - will be checked at application
+	// Length
+	if (IpcmdMessageGetVCCPDULength(mesg)+8 != IpcmdMessageGetLength(mesg) ) {
+		REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_INVALID_LENGTH, 0);
+		goto _ClientHandleMessage_done;
+	}
 
 	/* Handle Notification message */
 	switch (IpcmdMessageGetVCCPDUOpType(mesg)) {
