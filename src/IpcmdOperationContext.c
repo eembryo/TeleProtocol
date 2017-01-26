@@ -96,12 +96,15 @@ IpcmdOpCtxInit (IpcmdOpCtx *ctx,
 	g_assert (ctx->mOpState.pSM);
 
 	ctx->timer = NULL;
-	ctx->nWFABaseTimeout = IpcmdConfigGetInstance()->defaultTimeoutWFA;
-	ctx->nWFAIncreaseTimeout = IpcmdConfigGetInstance()->increaseTimerValueWFA;
-	ctx->nWFAMaxRetries = IpcmdConfigGetInstance()->numberOfRetriesWFA;
-	ctx->nWFRBaseTimeout = IpcmdConfigGetInstance()->defaultTimeoutWFR;
-	ctx->nWFRIncreaseTimeout = IpcmdConfigGetInstance()->increaseTimerValueWFR;
-	ctx->nWFRMaxRetries = IpcmdConfigGetInstance()->numberOfRetriesWFR;
+	{
+		const IpcmdConfigSignalParams *params = IpcmdConfigGetSignalParams (IpcmdConfigGetInstance(), service_id, operation_id);
+		ctx->nWFABaseTimeout = params->defaultTimeoutWFA;
+		ctx->nWFAIncreaseTimeout = params->increaseTimerValueWFA;
+		ctx->nWFAMaxRetries = params->numberOfRetriesWFA;
+		ctx->nWFRBaseTimeout = params->defaultTimeoutWFR;
+		ctx->nWFRIncreaseTimeout = params->increaseTimerValueWFR;
+		ctx->nWFRMaxRetries = params->numberOfRetriesWFR;
+	}
 	ctx->OnWFAExpired = DefaultOnWFATimerExpired;
 	ctx->OnWFRExpired = DefaultOnWFRTimerExpired;
 

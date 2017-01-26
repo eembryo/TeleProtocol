@@ -21,6 +21,7 @@ void			IpcmdTransportUdpv4Destroy(IpcmdTransport *transport);
 gboolean		IpcmdUdpv4EnableBroadcast(IpcmdTransport *transport, guint16 dst_port);
 void			IpcmdUdpv4DisableBroadcast(IpcmdTransport *transport);
 gint			IpcmdUdpv4AddManualChannel(IpcmdTransport *transport, GInetSocketAddress *local_inet_sockaddr, GInetSocketAddress *remote_inet_sockaddr);
+
 G_END_DECLS
 
 #endif /* INCLUDE_IPCMDTRANSPORTUDPV4_H_ */

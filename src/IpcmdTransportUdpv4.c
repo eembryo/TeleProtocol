@@ -44,7 +44,6 @@ struct _IpcmdTransportUdpv4 {
 	GInetSocketAddress	*bound_sockaddr_;
 	GHashTable			*channels_;				// key: ChannelHashkey, data: IpcmdChannel
 	GList				*broadcast_channels_;	// broadcast channels. These channels are also inserted in 'channels_' hash table.
-	//IpcmdChannel		*broadcast_channel_;
 
 	/* ConnectingMode */
 	GInetSocketAddress	*peer_sockaddr_;	// destination socket address in case of kConnectingMode
@@ -898,9 +897,9 @@ static IpcmdTransport udpv4 = {
 IpcmdTransport *
 IpcmdTransportUdpv4New()
 {
-	IpcmdTransportUdpv4 *new_transport;
+	IpcmdTransportUdpv4 *new_transport = NULL;
 	GError 				*gerror=NULL;
-	GSocket				*udp_socket;
+	GSocket				*udp_socket = NULL;
 
 	// make UDPv4 socket
 	udp_socket = g_socket_new(G_SOCKET_FAMILY_IPV4, G_SOCKET_TYPE_DATAGRAM, G_SOCKET_PROTOCOL_DEFAULT, &gerror);

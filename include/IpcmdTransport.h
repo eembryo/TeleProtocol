@@ -33,8 +33,6 @@ struct _IpcmdTransport {
 	gint						(*connect)(IpcmdTransport *transport,const gchar *ip,const guint16 port);
 	gboolean					(*listen)(IpcmdTransport *transport, const gint backlog);
 	gint						(*transmit)(IpcmdTransport *transport, const IpcmdChannel *channel, IpcmdMessage *message);
-//	gboolean					(*EnableBroadcast)(IpcmdTransport *transport);
-//	void						(*DisableBroadcast)(IpcmdTransport *transport);
 };
 
 G_END_DECLS

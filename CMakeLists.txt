@@ -22,7 +22,10 @@ project(IPCOMMANDPROTOCOL C)
 add_definitions(-DDEBUG=DLOG_LEVEL_WARN -DENABLE_LOG_COLOR -DTESTAPP_DEBUG -g -Wall)
 
 set(IPCOMM_LIB ipcmd)
-set(IPCOMM_INSTALL_PREFIX /app)
+set(IPCOMM_LIB_VERSION ${PV})
+if(NOT DEFINED IPCOMM_INSTALL_PREFIX)
+  set(IPCOMM_INSTALL_PREFIX /usr)
+endif(NOT DEFINED IPCOMM_INSTALL_PREFIX)
 
 include(FindPkgConfig)
 pkg_check_modules(GLIB2 REQUIRED glib-2.0)
@@ -49,7 +52,9 @@ set(LIBRARIES
 add_subdirectory(src)
 add_subdirectory(test)
 
-install(DIRECTORY include/ DESTINATION ${IPCOMM_INSTALL_PREFIX}/include/libipcmd
-  FILES_MATCHING PATTERN "*.h")
+set(prefix ${IPCOMM_INSTALL_PREFIX})
+configure_file(${CMAKE_SOURCE_DIR}/res/libipcmd.pc.in ${CMAKE_BINARY_DIR}/res/libipcmd.pc @ONLY)
 
-install(FILES res/libipcmd.pc DESTINATION ${IPCOMM_INSTALL_PREFIX}/lib/pkgconfig/)
+install(DIRECTORY include/ DESTINATION ${IPCOMM_INSTALL_PREFIX}/include/libipcmd FILES_MATCHING PATTERN "*.h")
+install(FILES ${CMAKE_BINARY_DIR}/res/libipcmd.pc DESTINATION ${IPCOMM_INSTALL_PREFIX}/lib/pkgconfig/)
+install(FILES ${CMAKE_SOURCE_DIR}/res/libipcmd.conf DESTINATION /etc/)

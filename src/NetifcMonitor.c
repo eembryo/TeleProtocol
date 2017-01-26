@@ -287,8 +287,10 @@ NetifcMonitorUpdate(NetifcMonitor *monitor)
 
 	g_hash_table_remove_all(pNetifcMonitor->hashNetIfcs);
 
-	if ((sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) < 0)
+	if ((sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) < 0) {
 		g_warning("socket creation:");
+		goto _NetifcMonitorUpdate_return;
+	}
 
 	/* point the header and the msg structure pointers into the buffer */
 	nlMsg = (struct nlmsghdr*) msgBuf;
@@ -304,7 +306,7 @@ NetifcMonitorUpdate(NetifcMonitor *monitor)
 	/* Send the request */
 	if (send(sock, nlMsg, nlMsg->nlmsg_len, 0) < 0) {
 		g_warning("Write To Socket Failed...\n");
-		return;
+		goto _NetifcMonitorUpdate_return;
 	}
 
 	{
@@ -318,7 +320,7 @@ NetifcMonitorUpdate(NetifcMonitor *monitor)
 		nll = recv(sock, reply, sizeof(reply), 0);
 		if (nll < 0) {
 			g_warning("Receive From Socket Failed:");
-			return;
+			goto _NetifcMonitorUpdate_return;
 		}
 
 		for (nlMsg = (struct nlmsghdr *)reply; NLMSG_OK(nlMsg,nll); nlMsg = NLMSG_NEXT(nlMsg, nll)) {
@@ -360,6 +362,8 @@ NetifcMonitorUpdate(NetifcMonitor *monitor)
 			NetifcAddIfcAddress(pNetifc, pThisIfcAddress);
 		}
 	}
+
+	_NetifcMonitorUpdate_return:
 	close (sock);
 
 	NetifcMonitorUpdateBroadAddrCache(monitor);

@@ -35,22 +35,22 @@ static void		_Init (IpcmdClient *self, IpcmdHost *server_host);
 static void		_OnRegisteredToCore (IpcmdClient *self, IpcmdCore *core);
 static void 	_OnUnregisteredFromCore (IpcmdClient *self, IpcmdCore *core);
 
-#define REPLY_ERROR(core, channel_id, mesg, ecode, einfo) do {\
+#define REPLY_ERROR(_core, _channel_id, _mesg, _ecode, _einfo) do {\
 		IpcmdMessage *error_message = IpcmdMessageNew(IPCMD_ERROR_MESSAGE_SIZE); \
-		IpcmdMessageInitVCCPDUHeader (error_message, IpcmdMessageGetVCCPDUServiceID(mesg), \
-				IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUSenderHandleID(mesg), \
-				IpcmdMessageGetVCCPDUProtoVersion(mesg), IPCMD_OPTYPE_ERROR, IPCMD_PAYLOAD_NOTENCODED, 0); \
-		IpcmdMessageSetErrorPayload (error_message, ecode, einfo); \
-		IpcmdCoreTransmit (core, channel_id, error_message); \
+		IpcmdMessageInitVCCPDUHeader (error_message, IpcmdMessageGetVCCPDUServiceID(_mesg), \
+				IpcmdMessageGetVCCPDUOperationID(_mesg), IpcmdMessageGetVCCPDUSenderHandleID(_mesg), \
+				IpcmdMessageGetVCCPDUProtoVersion(_mesg), IPCMD_OPTYPE_ERROR, IPCMD_PAYLOAD_NOTENCODED, 0); \
+		IpcmdMessageSetErrorPayload (error_message, _ecode, _einfo); \
+		IpcmdCoreTransmit (_core, _channel_id, error_message); \
 		IpcmdMessageUnref(error_message);\
 }while(0)
 
-#define REPLY_ACK(core, channel_id, mesg) do {\
+#define REPLY_ACK(_core, _channel_id, _mesg) do {\
 		IpcmdMessage *ack_message = IpcmdMessageNew(IPCMD_ACK_MESSAGE_SIZE); \
-		IpcmdMessageInitVCCPDUHeader (ack_message, IpcmdMessageGetVCCPDUServiceID(mesg), \
-				IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUSenderHandleID(mesg), \
-				IpcmdMessageGetVCCPDUProtoVersion(mesg), IPCMD_OPTYPE_ACK, IPCMD_PAYLOAD_NOTENCODED, 0); \
-		IpcmdCoreTransmit (core, channel_id, ack_message); \
+		IpcmdMessageInitVCCPDUHeader (ack_message, IpcmdMessageGetVCCPDUServiceID(_mesg), \
+				IpcmdMessageGetVCCPDUOperationID(_mesg), IpcmdMessageGetVCCPDUSenderHandleID(_mesg), \
+				IpcmdMessageGetVCCPDUProtoVersion(_mesg), IPCMD_OPTYPE_ACK, IPCMD_PAYLOAD_NOTENCODED, 0); \
+		IpcmdCoreTransmit (_core, _channel_id, ack_message); \
 		IpcmdMessageUnref(ack_message);\
 }while(0)
 

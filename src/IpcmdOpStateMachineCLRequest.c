@@ -226,6 +226,7 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_AckRecv_RecvResp)
 
 	return op_state->state_;
 }
+/*
 #define REPLY_ERROR(core, channel_id, ecode, einfo) do {\
 		IpcmdMessage *error_message = IpcmdMessageNew(IPCMD_ERROR_MESSAGE_SIZE); \
 		IpcmdMessageInitVCCPDUHeader (error_message, IpcmdMessageGetVCCPDUServiceID(mesg), \
@@ -235,6 +236,7 @@ DECLARE_SM_ENTRY(DoAction_CLREQUEST_AckRecv_RecvResp)
 		IpcmdCoreTransmit (core, channel_id, error_message); \
 		IpcmdMessageUnref(error_message);\
 }while(0)
+*/
 
 DECLARE_SM_ENTRY(DoAction_CLREQUEST_Idle_RecvRequest)
 {

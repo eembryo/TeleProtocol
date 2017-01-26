@@ -28,6 +28,7 @@ QueryNetifcForDst(const struct in_addr *target)
 		struct nlmsghdr	nlh;
 		char 			data[MAX_CMSG_SIZE];
 	} nl_req, nl_resp = {0};
+	gint oif = -1;
 
 	struct rtmsg*	p_rtm;
 	struct rtattr*	p_rta;
@@ -79,14 +80,16 @@ QueryNetifcForDst(const struct in_addr *target)
 			for (p_rta = RTM_RTA(p_rtm); RTA_OK(p_rta, rtml); p_rta = RTA_NEXT(p_rta, rtml)) {
 				//DPRINT("rta_type = %d\n", p_rta->rta_type);
 				if (p_rta->rta_type == RTA_OIF) {
-					return *(gint *)RTA_DATA(p_rta);
+					oif = *(gint *)RTA_DATA(p_rta);
+					goto _QuerySrcIpv4Addr_success;
 				}
 			}
 		}
 	}
-	close(nl_sock);
+	_QuerySrcIpv4Addr_success:
+	if (nl_sock != -1) close(nl_sock);
 
-	return 0;
+	return oif;
 
 	_QuerySrcIpv4Addr_failed:
 	if (nl_sock != -1) close(nl_sock);

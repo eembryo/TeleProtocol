@@ -192,13 +192,13 @@ IpcmdAgentClientOpen (IpcmdAgent *agent, const IpcmdHost *remote_host)
 
 	client = IpcmdClientNew (agent->core_, remote_host->duplicate(remote_host));
 
-	for (i=1; i!=0; i++) {
+	for (i=1; i < G_MAXUSHORT; i++) {
 		if (g_hash_table_contains(agent->clients_, GINT_TO_POINTER(i))) continue;
 		g_hash_table_insert (agent->clients_, GINT_TO_POINTER(i), client);
 		break;
 	}
 
-	if (i==0) {
+	if (i == G_MAXUSHORT) {
 		IpcmdClientDestroy (client);
 		return -2;
 	}

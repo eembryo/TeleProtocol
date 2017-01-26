@@ -1,0 +1,10 @@
+prefix=@prefix@
+exec_prefix=@prefix@/bin
+libdir=@prefix@/lib
+includedir=@prefix@/include
+
+Name: libipcmd
+Description: IP Command Protocol Library
+Version: @IPCOMM_LIB_VERSION@
+Libs: -L${libdir} -lipcmd
+Cflags: -I${includedir}/libipcmd

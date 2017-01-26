@@ -25,13 +25,13 @@ static void _ReceiveChannelEvent(IpcmdBusEventListener *self, IpcmdChannelId id,
 static void _RemoveOpCtx (gpointer opctx);
 static void	_OnOpCtxFinalized(IpcmdOpCtxId opctx_id, gpointer cb_data);
 
-#define REPLY_ERROR(core, channel_id, mesg, ecode, einfo) do {\
+#define REPLY_ERROR(_core, _channel_id, _mesg, _ecode, _einfo) do {\
 		IpcmdMessage *error_message = IpcmdMessageNew(IPCMD_ERROR_MESSAGE_SIZE); \
-		IpcmdMessageInitVCCPDUHeader (error_message, IpcmdMessageGetVCCPDUServiceID(mesg), \
-				IpcmdMessageGetVCCPDUOperationID(mesg), IpcmdMessageGetVCCPDUSenderHandleID(mesg), \
-				IpcmdMessageGetVCCPDUProtoVersion(mesg), IPCMD_OPTYPE_ERROR, IPCMD_PAYLOAD_NOTENCODED, 0); \
-		IpcmdMessageSetErrorPayload (error_message, ecode, einfo); \
-		IpcmdCoreTransmit (core, channel_id, error_message); \
+		IpcmdMessageInitVCCPDUHeader (error_message, IpcmdMessageGetVCCPDUServiceID(_mesg), \
+				IpcmdMessageGetVCCPDUOperationID(_mesg), IpcmdMessageGetVCCPDUSenderHandleID(_mesg), \
+				IpcmdMessageGetVCCPDUProtoVersion(_mesg), IPCMD_OPTYPE_ERROR, IPCMD_PAYLOAD_NOTENCODED, 0); \
+		IpcmdMessageSetErrorPayload (error_message, _ecode, _einfo); \
+		IpcmdCoreTransmit (_core, _channel_id, error_message); \
 		IpcmdMessageUnref(error_message);\
 }while(0)
 
@@ -132,7 +132,7 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 			 * (see table in [REQPROD347068]), to any new incoming messages.
 			 */
 			// If IpcmdServer has maximum number of operation contexts, send BUSY error
-			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maximumConcurrentMessages) {
+			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maxConcurrentMessages) {
 				REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_BUSY, 0);
 				goto _HandleMessage_done;
 			}
@@ -155,7 +155,7 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 	case IPCMD_OPTYPE_SETREQUEST_NORETURN:
 		if (!opctx) {	// new operation
 			// If IpcmdServer has maximum number of operation contexts, send BUSY error
-			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maximumConcurrentMessages) {
+			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maxConcurrentMessages) {
 				REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_BUSY, 0);
 				goto _HandleMessage_done;
 			}
@@ -178,7 +178,7 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 	case IPCMD_OPTYPE_SETREQUEST:
 		if (!opctx) {	// new operation
 			// If IpcmdServer has maximum number of operation contexts, send BUSY error
-			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maximumConcurrentMessages) {
+			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maxConcurrentMessages) {
 				REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_BUSY, 0);
 				goto _HandleMessage_done;
 			}
@@ -201,7 +201,7 @@ IpcmdServerHandleMessage(IpcmdServer *self, IpcmdChannelId channel_id, IpcmdMess
 	case IPCMD_OPTYPE_NOTIFICATION_REQUEST:
 		if (!opctx) {	// new operation
 			// If IpcmdServer has maximum number of operation contexts, send BUSY error
-			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maximumConcurrentMessages) {
+			if (g_hash_table_size (self->operation_contexts_) >= IpcmdConfigGetInstance()->maxConcurrentMessages) {
 				REPLY_ERROR (self->core_, channel_id, mesg, IPCOM_MESSAGE_ECODE_BUSY, 0);
 				goto _HandleMessage_done;
 			}
