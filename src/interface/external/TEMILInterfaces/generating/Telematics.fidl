@@ -1,0 +1,551 @@
+/*
+ * @@@ LICENSE
+ * Copyright (C) 2015-2016, LG Electronics, All Right Reserved.
+ * No part of this source code may be communicated, distributed, reproduced
+ * or transmitted in any form or by any means, electronic or mechanical or
+ * otherwise, for any purpose, without the prior written permission of
+ * LG Electronics.
+ * LICENSE @@@
+ *
+ * Design/Author : jaewoon.kim@lge.com, sandeep.ankolekar@lge.com
+ * Date : Jan. 21, 2016.
+ * Modified : April 18, 2016.
+ * Modified : June 2, 2016.
+ * Updated	: Sept. 29, 2016. (Rev. 016)
+ *
+ * <IHU TEM-IL> Detailed note is as follows.
+ *
+ * This FIDL is for ...
+ * 		1. Service Name = com.lge.temil
+ * 		2. OBJ PATH = /com/lge/temil/Telematics
+ *      3. Interface Name = com.lge.temil.Telematics.${interface}
+ *
+ * This FIDL is based on the below spec document :
+ * CEVT, "SWRS IP COMMAND BUS MESSAGES," Document No. 8888260713, Rev. 016, Vol. 01, 2015-12-18.
+ */
+
+
+package com.lge.temil.Telematics
+
+import com.lge.temil.CommonTypes.* from "CommonTypes.fidl"
+
+
+<**
+	@description : This Operation Interface is for com.lge.temil.Telematics.TelematicSettings
+	The interface definition uses some basic data types, which are defined
+	in a separate Franca IDL file (i.e., CommonTypes.fidl).
+
+	Overview:
+	A collection of settings related to telematics services:
+		1. Keylock-setting, (enable/disable VOC buttons when vehicle is parked)
+	Higher level handling of this operation (when to send, WFR timers, etc.) are specified in
+	system SRD and SWRS documents, see referenced specifications.
+**>
+interface TelematicSettings {
+	version { major 1 minor 0}
+
+	<**
+		@description : Method to request the telematic settings to TEM2
+	**>
+	method SetRequest {
+		in {
+			<** @description : TelemSettings - Element is optional in case there will be more elements in the future.
+				Then it will be possible to set only one of the elements. **>
+			TelemSettings telemSetting
+		}
+		out {
+			TelemSettings telemSettingResult
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Method to request the status of the telematic settings to TEM2
+	**>
+	method Request {
+		out {
+			TelemSettings telemSetting
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Method to request whether the caller subscription for this operation notification is eabled or disabled
+		@param : subscribed is the input parameter for subscription preference
+	**>
+	method NotificationRequest {
+		in {
+			Boolean subscribed
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Broadcating signal for this operation notification
+		This notification event will be enabled or disabled by NotificationRequest method
+	**>
+	broadcast Notification {
+		out {
+			TelemSettings telemSetting
+		}
+	}
+
+	/* The below is for Data Types in this interface */
+	struct TelemSettings {
+		<** @description : OnCall/SOS button keylock enabled True or False **>
+		Boolean keylockEnabled
+	}
+}
+
+<**
+	@description : This Operation Interface is for com.lge.temil.Telematics.PositionData
+	The interface definition uses some basic data types, which are defined
+	in a separate Franca IDL file (i.e., CommonTypes.fidl).
+
+	Overview:
+	GPS position currently used by the telematics system.
+**>
+interface PositionData {
+	version { major 1 minor 0}
+
+	<**
+		@description : Method to request the position data to TEM2
+	**>
+	method Request {
+		out {
+			SimpleVehiclePosition position
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	struct SimpleVehiclePosition {
+		<** @description : noValidData will be true if the server can not provide a position of
+			sufficient quality **>
+		Boolean noValidData
+		WGS84SimplePositionData wgs84
+	}
+
+	struct WGS84SimplePositionData {
+		CoordinatesLongLat longLat
+		<** @description : GPS time received with the fix **>
+		DateTime fixTime
+		<** @description : Specifies the current GNSS fix, not regarding DR **>
+		GnssFixType fixType
+		DeadReckoningType drType
+	}
+}
+
+<**
+	@description : This Operation Interface is for com.lge.temil.Telematics.SubscriptionActivation
+	The interface definition uses some basic data types, which are defined
+	in a separate Franca IDL file (i.e., CommonTypes.fidl).
+
+	Overview:
+	Notify the activation status in TEM2.
+	Request may be rejected if some services are ongoing in TEM2
+**>
+interface SubscriptionActivation {
+	version { major 1 minor 0}
+
+	<**
+		@description : Method to request the status of subscription activation to TEM2
+		@param : status returns the updated status of subscription activation value
+	**>
+	method  Request {
+		out {
+			ActivationStatus status
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Method to request whether the caller subscription for this operation notification is eabled or disabled
+		@param : subscribed is the input parameter for subscription preference
+	**>
+	method NotificationRequest {
+		in {
+			Boolean subscribed
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Broadcating signal for this operation notification
+		This notification event will be enabled or disabled by NotificationRequest method
+	**>
+	broadcast Notification {
+		out {
+			ActivationStatus status
+		}
+	}
+
+	/* The below is for Data Types  in this interface */
+	<** @description : Activation Status of TEM2 **>
+	enumeration ActivationStatus {
+		<** @description : No telematic functionality. Modem is off **>
+		deactivated 				= 0
+		<** @description : Has an active subscription **>
+		activated_provisioned 		= 1
+		<** @description : Provisioning possible. Wakeup cycles as for provisioned state  **>
+		activated_unprovisioned 	= 3
+		<** @description : Provisioning ongoing, started from remote  **>
+		remote_provisioning_ongoing = 4
+		<** @description : Provisioning ongoing, started from vehicle **>
+		provisioning_ongoing 		= 5
+	}
+}
+
+<**
+	@description : This Operation Interface is for com.lge.temil.Telematics.ServiceActivation
+	The interface definition uses some basic data types, which are defined
+	in a separate Franca IDL file (i.e., CommonTypes.fidl).
+
+	Overview:
+	Command used by IHU to start or stop a telematics service.
+	Higher level handling of this operation (when to send, WFR timers, etc.) are specified in
+	system SRD and SWRS documents, see referenced specifications.
+**>
+interface ServiceActivation {
+	version { major 1 minor 0}
+
+	<**
+		@description : Method to request the X-Call activation to TEM2
+	**>
+	method SetRequest {
+		in {
+			<** @description : Desired service **>
+			OnCallService service
+			<** @description : On or Off **>
+			OnOffSetting action
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	/* The below is for Data Types in this interface */
+	enumeration OnCallService {
+		<** @description : Set to Information Call **>
+		InformationCall	= 2
+	}
+}
+
+
+<**
+	@description : This Operation Interface is for com.lge.temil.Telematics.RescueStatus
+	The interface definition uses some basic data types, which are defined
+	in a separate Franca IDL file (i.e., CommonTypes.fidl).
+
+	Overview:
+	Signals status information to IHU for the rescue services RA, EA, SDN.
+	Higher level handling of this operation (when to send, WFR timers, etc.) are specified in
+	system SRD and SWRS documents, see referenced specifications.
+**>
+interface RescueStatus {
+	version { major 1 minor 0}
+
+	<**
+		@description : Method to request the status of x-call, sms, voice, button, audio, and etc. to TEM2
+		@param : status returns the updated status of rescue status values
+	**>
+	method Request {
+		out {
+			CallStatus eCallStatus
+			CallStatus bCallStatus
+			CallStatus iCallStatus
+			CallStatus sdnStatus
+			<** @description : indicates the backup audio system status in TEM2 **>
+			GenericOkStatus backupAudioStatus
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Method to request whether the caller subscription for this operation notification is eabled or disabled
+		@param : subscribed is the input parameter for subscription preference
+	**>
+	method NotificationRequest {
+		in {
+			Boolean subscribed
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Broadcating signal for this operation notification
+		This notification event will be enabled or disabled by NotificationRequest method
+	**>
+	broadcast Notification {
+		out {
+			CallStatus eCallStatus
+			CallStatus bCallStatus
+			CallStatus iCallStatus
+			CallStatus sdnStatus
+			<** @description : indicates the backup audio system status in TEM2 **>
+			GenericOkStatus backupAudioStatus
+		}
+	}
+
+	struct CallStatus {
+		RescueStatus status
+		<** @description : Defined in Shared elements **>
+		XCallType callType
+		<** @description : Inclease to call id **>
+		UInt8 callId
+		<** @description : The voice call status **>
+		VoiceStatus voiceStatus
+		<** @description : Defined in Shared elements **>
+		SourceStatus voiceSource
+		<** @description : The SMS send status **>
+		MessageStatus messageStatus
+		<** @description : The button (health?) status **>
+		ButtonStatus buttonStatus
+		<** @description : Used to instruct IHU to get a confirmation from the user before calling the PSAP **>
+		PSAPStatus psapConfirmStatus
+		StandbyStatus sbStatus
+	}
+
+	/* The below is for Data Types  in this interface */
+	enumeration RescueStatus {
+		disabled 			= 0
+		notActive 			= 1
+		serviceNotAvailable = 2
+		active 				= 3
+		terminated 			= 4
+	}
+
+	enumeration ButtonStatus {
+		<** @description : The H/W Button for I-Call is disabled in TEM2. The S/W Button for I-Call is enabled in IHU **>
+		disabled		= 0
+		pressed			= 1
+		<** @description : To be used in SPA **>
+		released		= 2
+		allReleased		= 3
+	}
+
+	enumeration VoiceStatus {
+		noConnection		= 0
+		connectingCSC		= 1
+		connectingPSAP		= 2
+		connectedCSC		= 3
+		connectedPSAP		= 4
+		incomingCall		= 5
+		connectedCall		= 6
+		connectedIncoming	= 7
+		endedCall			= 8
+		endedCallRetry		= 9
+	}
+
+	enumeration MessageStatus {
+		notSent			= 0
+		sending			= 1
+		sent			= 2
+		ackUndefined	= 3
+		ackDefined		= 4
+	}
+
+	enumeration PSAPStatus {
+		confirmRequired		= 0
+		confirmNotRequired	= 1
+	}
+
+	enumeration StandbyStatus {
+		<** @description : Default or no standby status **>
+		notActive	= 0
+		<** @description : Start standby status **>
+		active		= 1
+		<** @description : Cancel standby status **>
+		cancel		= 2
+	}
+}
+
+<**
+	@description : This Operation Interface is for com.lge.temil.Telematics.UserPrivacySettings
+	The interface definition uses some basic data types, which are defined
+	in a separate Franca IDL file (i.e., CommonTypes.fidl).
+
+	Overview:
+	A user setting controlling whether personal user data such as position or dashboard
+	data shall be sent from the vehicle.
+	TEM2 will be notified on IHU system startup and on value change in order to get the
+	latest valid value, which shall be persistently stored. Initial values will be specified in
+	referenced specifications.
+**>
+interface UserPrivacySettings {
+	version { major 1 minor 0}
+
+	<**
+		@description : Method to send the user privacy setting into TEM2
+	**>
+	method SetRequest {
+		in {
+			UserPrivacySettings userPrivacySetting
+		}
+		out {
+			UserPrivacySettings userPrivacySettingResult
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Method to obtain the set-value of the user privacy setting from TEM2
+	**>
+	method Request {
+		out {
+			UserPrivacySettings userPrivacySettingResult
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Method to request whether the caller subscription for this operation notification is eabled or disabled
+		@param : subscribed is the input parameter for subscription preference
+	**>
+	method NotificationRequest {
+		in {
+			Boolean subscribed
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Broadcating signal for this operation notification
+		This notification event will be enabled or disabled by NotificationRequest method
+	**>
+	broadcast Notification {
+		out {
+			UserPrivacySettings userPrivacySettingResult
+		}
+	}
+
+	/* The below is for Data Types  in this interface */
+	struct UserPrivacySettings {
+		<** @description : Upload Car status, enabled flag **>
+		Boolean carStatUploadEn
+		<** @description : Upload position, enabled flag **>
+		Boolean locationServicesEn
+		<** @description : Car Locator, enabled flag **>
+		Boolean CarLocatorStatUploadEn
+		<** @description : Journal Log, enabled flag **>
+		Boolean JournalLogUploadEn
+		<** @description : Enable disable SIM, enabled flag **>
+		Boolean simConnectEn
+		<** @description : Remote status, enabled flag  **>
+		Boolean RemoteStatusUploadEn
+	}
+}
+
+
+/* [NOTE] SendToCarConfirmation is removed in Rev.012 */
+
+
+<**
+	@description : This Operation Interface is for com.lge.temil.Telematics.ProvisioningStatus (Operation ID = 0x0116)
+	The interface definition uses some basic data types, which are defined
+	in a separate Franca IDL file (i.e., CommonTypes.fidl).
+
+	Overview:
+	Notify the provisioning of status in TEM2.
+	Request may be rejected if some services are ongoing in TEM2.
+**>
+interface ProvisioningStatus {
+	version { major 1 minor 0}
+
+	<**
+		@description : Method to request the status of ProvisioningStatus to TEM2
+	**>
+	method Request {
+		out {
+			ProvisioningStatus provisioningStatus
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Method to request whether the caller subscription for this operation notification is eabled or disabled
+		@param : subscribed is the input parameter for subscription preference
+	**>
+	method NotificationRequest {
+		in {
+			Boolean subscribed
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	<**
+		@description : Broadcating signal for this operation notification
+		This notification event will be enabled or disabled by NotificationRequest method
+	**>
+	broadcast Notification {
+		out {
+			ProvisioningStatus provisioningStatus
+		}
+	}
+
+	/* The below is for Data Types  in this interface */
+	struct ProvisioningStatus {
+		<** @description : unprovisioned(FALSE)/provisioned(TRUE) **>
+		Boolean provisionStatusEcall
+		<** @description : unprovisioned(FALSE)/provisioned(TRUE) **>
+		Boolean provisionStatusBcall
+		<** @description : unprovisioned(FALSE)/provisioned(TRUE) **>
+		Boolean provisionStatusIcall
+		<** @description : unprovisioned(FALSE)/provisioned(TRUE) **>
+		Boolean provionsStatusJournalLog
+	}
+}
+

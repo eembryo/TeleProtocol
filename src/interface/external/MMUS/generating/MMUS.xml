@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="introspect.xsl"?>
+<!-- This D-Bus Introspection model has been created from a Franca IDL file. -->
+<!-- Input file: 'MMUS.fidl' -->
+<node xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="introspect.xsd" name="com.lge.car.micom">
+  <interface name="com.lge.car.micom.vddm">
+    <version>2.0</version>
+    <signal name="NotifyGearIndcnRec">
+      <arg direction="out" name="gearIndcnRec" type="ay">
+      <annotation name="org.gtk.GDBus.C.ForceGVariant" value="true"/>
+        <doc>
+          <line>gearIndcnRec = Description missing</line>
+        </doc>
+      </arg>
+    </signal>
+    <signal name="NotifyWhlRotToothCntr">
+      <arg direction="out" name="whlRotToothCntr" type="ay">
+      <annotation name="org.gtk.GDBus.C.ForceGVariant" value="true"/>
+        <doc>
+          <line>whlRotToothCntr = Description missing</line>
+        </doc>
+      </arg>
+    </signal>
+  </interface>
+  <interface name="com.lge.car.micom.ihu">
+    <version>2.0</version>
+    <signal name="NotifyCarIFStatus">
+      <arg direction="out" name="CarIFStatus" type="ay">
+      <annotation name="org.gtk.GDBus.C.ForceGVariant" value="true"/>
+        <doc>
+          <line>CarIFStatus = Description missing</line>
+        </doc>
+      </arg>
+    </signal>
+    <method name="AskSysLastStatus">
+      <arg direction="out" name="SysLastStatus" type="ay">
+      <annotation name="org.gtk.GDBus.C.ForceGVariant" value="true"/>
+        <doc>
+          <line>SysLastStatus = Description missing</line>
+        </doc>
+      </arg>
+    </method>
+  </interface>
+  <interface name="com.lge.car.micom.cem">
+		<signal name="NotifyEmgyAsscSts">
+			<arg direction="out" name="EmgyAsscSts" type="ay">
+			<annotation name="org.gtk.GDBus.C.ForceGVariant" value="true"/>
+			</arg>
+		</signal>
+		<signal name="NotifyTelmSts">
+			<arg direction="out" name="TelmSts" type="ay">
+			<annotation name="org.gtk.GDBus.C.ForceGVariant" value="true"/>
+			</arg>
+		</signal>
+	</interface>
+</node>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="introspect.xsl"?>
+<!-- This D-Bus Introspection model has been created from a Franca IDL file. -->
+<!-- Input file: 'CommonPhone.fidl' -->
+<node xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="introspect.xsd" name="com.lge.temil.CommonPhone">
+  <interface name="com.lge.temil.CommonPhone.CallHandling">
+    <version>1.0</version>
+    <method name="SetRequest">
+      <doc>
+        <line>SetRequest = Method to accept an incoming call or hangup the current call to TEM2</line>
+      </doc>
+      <arg direction="in" name="action" type="u">
+        <doc>
+          <line>action = Description missing</line>
+        </doc>
+      </arg>
+      <arg direction="in" name="callId" type="u">
+        <doc>
+          <line>callId = (Defined in Shared elements) OPTIONAL - If omitted with action=hangupCall, all ongoing calls will be hung up</line>
+        </doc>
+      </arg>
+      <error name="com.lge.temil.CommonPhone.CallHandling.Error.INVALID_PARAMETER" id="0"/>
+      <error name="com.lge.temil.CommonPhone.CallHandling.Error.INPROGRESS" id="1"/>
+      <error name="com.lge.temil.CommonPhone.CallHandling.Error.UNKNOWN" id="2"/>
+    </method>
+  </interface>
+</node>

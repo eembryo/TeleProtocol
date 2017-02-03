@@ -1,0 +1,20 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+        "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+        <node name="/com/lge/geely/CarConfigProvider">
+                <interface name="com.lge.geely.CarConfigProviderInterface">
+                <method name = "getCarConfigData">
+                    <arg type="i" name="index" direction="in"/>
+                    <arg type="i" name="data" direction="out"/>
+                </method>
+                <method name = "getVehicleInfoData">
+                    <arg type="i" name="index" direction="in"/>
+                    <arg type="i" name="data" direction="out"/>
+                </method>
+                <signal name = "notifyUpdateCarConfigData">
+                    <arg type="i" name="index" direction="out"/>
+                </signal>
+                <signal name = "notifyUpdateVehicleInfoData">
+                    <arg type="i" name="index" direction="out"/>
+                </signal>
+                </interface>
+        </node>

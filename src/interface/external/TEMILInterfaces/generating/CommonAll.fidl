@@ -1,0 +1,66 @@
+/*
+ * @@@ LICENSE
+ * Copyright (C) 2015-2016, LG Electronics, All Right Reserved.
+ * No part of this source code may be communicated, distributed, reproduced
+ * or transmitted in any form or by any means, electronic or mechanical or
+ * otherwise, for any purpose, without the prior written permission of
+ * LG Electronics.
+ * LICENSE @@@
+ *
+ * Design/Author : jaewoon.kim@lge.com, sandeep.ankolekar@lge.com
+ * Date : Jan. 21, 2016.
+ * Modified : April 18, 2016.
+ * Modified : June 2, 2016.
+ * Updated	: Sept. 29, 2016. (Rev. 016)
+ *
+ * <IHU TEM-IL> Detailed note is as follows.
+ *
+ * This FIDL is for ...
+ * 		1. Service Name = com.lge.temil
+ * 		2. OBJ PATH = /com/lge/temil/CommonAll
+ *      3. Interface Name = com.lge.temil.CommonAll.${interface}
+ *
+ * This FIDL is based on the below spec document :
+ * CEVT, "SWRS IP COMMAND BUS MESSAGES," Document No. 8888260713, Rev. 016, Vol. 01, 2015-12-18.
+ */
+
+
+package com.lge.temil.CommonAll
+
+import com.lge.temil.CommonTypes.* from "CommonTypes.fidl"
+
+
+<**
+	@description : This Operation Interface is for com.lge.temil.CommonAll.TEM2Identification
+	The interface definition uses some basic data types, which are defined
+	in a separate Franca IDL file (i.e., CommonTypes.fidl).
+
+	Overview:
+	Request the IMEI and possibly other ID of the TEM2
+**>
+interface TEM2Identification {
+	version { major 1 minor 0}
+
+	<**
+		@description : Method to request the IMEI and possibly other ID of the TEM2
+	**>
+	method Request {
+		out {
+			<** @description : For display to user (required in some countries) **>
+			String imei
+			<** @description : OPTIONAL - Is this needed? **>
+			MacAddress wifiMac
+			<** @description : TEM2 serial number. Used by infotainment security. **>
+			String serialNr
+		}
+		error {
+			INVALID_PARAMETER
+			INPROGRESS
+			UNKNOWN
+		}
+	}
+
+	/* The below is for Data Types  in this interface */
+	typedef MacAddress is String
+}
+
