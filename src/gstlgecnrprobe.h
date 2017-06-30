@@ -25,6 +25,8 @@
 #include <gst/base/gstadapter.h>
 #include <gst/base/gstbasetransform.h>
 #include <gst/audio/audio.h>
+#include "lgecnradapter.h"
+#include <memory>
 
 G_BEGIN_DECLS
 
@@ -45,16 +47,15 @@ struct _GstLgecnrProbe
 
 	GMutex lock;
 	/* Protected by the lock */
-	GstAudioInfo info;
-	guint period_size;
+
 	GstClockTime latency;
 	gint delay;
 	guint64 timeadjust;
+	guint64 latencyadjust;
 
 	GstSegment segment;
-	GstAdapter *adapter;
-	GstAdapter *spkAdapter;
 
+	std::shared_ptr<LgEcnrAdapter> adapter;
 	/* Private */
 	gboolean acquired;
 };

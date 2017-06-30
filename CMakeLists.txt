@@ -26,7 +26,6 @@ pkg_check_modules(GST REQUIRED gstreamer-1.0)
 pkg_check_modules(GSTAUDIO REQUIRED gstreamer-audio-1.0)
 pkg_check_modules(GSTBASE REQUIRED gstreamer-base-1.0)
 pkg_check_modules(GSTPLUGINBASE REQUIRED gstreamer-plugins-base-1.0)
-pkg_check_modules(TSE REQUIRED tse)
 
 include_directories(include)
 include_directories(
@@ -36,7 +35,7 @@ include_directories(
                     ${GST_INCLUDE_DIRS}
                     ${GSTBASE_INCLUDE_DIRS}
                     ${GSTAUDIO_INCLUDE_DIRS}
-                    ${TSE_INCLUDE_DIRS}
+                    $ENV{PKG_CONFIG_SYSROOT_DIR}/app/include/ecnr
                     )
 
 add_definitions(-DECNR_ENABLE)
@@ -53,7 +52,9 @@ set(LIBRARIES
     m
     )
 
-set (ECNR_LIBS ${TSE_LDFLAGS})
+set (ECNR_LIBS
+    $ENV{PKG_CONFIG_SYSROOT_DIR}/app/lib/libtse.so
+    $ENV{PKG_CONFIG_SYSROOT_DIR}/app/lib/libtseFilter.so)
 
 add_subdirectory(src)
 

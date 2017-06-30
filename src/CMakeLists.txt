@@ -15,19 +15,23 @@
  #
 
 
-set(LGECNR_SRCS
-    gstlgecnr.cpp
-    gstlgecnrprobe.c
-   )
+ set(LGECNR_SRCS
+         gstlgecnr.cpp
+         gstlgecnrprobe.cpp
+         lgecnradapter.cpp
+         )
 
-set(CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -g -O0")
+ set(CMAKE_CXX_FLAGS
+         "${CMAKE_CXX_FLAGS} -std=c++11 -Wall -g")
 
-set(CMAKE_C_FLAGS
-    "${CMAKE_C_FLAGS} -Wall -g -O0")
+ set(CMAKE_C_FLAGS
+         "${CMAKE_C_FLAGS} -Wall -g")
 
-add_library(lgecnr SHARED ${LGECNR_SRCS})
+ #add_definitions("-DDISABLE_LGECNR_ENGINE")
+ #add_definitions(-DSKIP_OLD_DATA)
 
-target_link_libraries(lgecnr ${LIBRARIES} ${ECNR_LIBS})
+ add_library(lgecnr SHARED ${LGECNR_SRCS})
 
-install(TARGETS lgecnr DESTINATION /app/lib/gst-plugins)
+ target_link_libraries(lgecnr ${LIBRARIES} ${ECNR_LIBS})
+
+ install(TARGETS lgecnr DESTINATION /app/lib/gst-plugins)

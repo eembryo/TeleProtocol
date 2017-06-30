@@ -35,6 +35,7 @@
 #include "tseFilter.h"
 #include "tseFilter_priv.h"
 #endif
+#include <memory>
 
 G_BEGIN_DECLS
 
@@ -53,11 +54,6 @@ struct _GstLgecnr
 
 	/* Protected by the object lock */
 	GstAudioInfo info;
-	guint period_size;
-
-	/* Protected by the stream lock */
-	GstAdapter *adapter;
-	//lge ecnr library pointer;
 
 	/* Protected by the object lock */
 	gchar *probe_name;
@@ -67,17 +63,9 @@ struct _GstLgecnr
 
 	/* volume info for ecnr processing*/
 	guint32 volumeInfo;
+	guint64 latencyadjust;
 
-#ifdef ECNR_ENABLE
-	gsize mSampleBytes;
-	gsize mSampleRate;
-	gsize mBufferSize;
-	gsize mSampleFrames;
-	gsize mMicInChannelCnt;
-	gint8 mConfigMode;
-	void *mTseCtx;
-#endif
-    LgEcnrAdapter *m_EcnrAdapter;
+	std::shared_ptr<LgEcnrAdapter> m_EcnrAdapter;
 };
 
 struct _GstLgecnrClass
